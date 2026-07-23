@@ -314,11 +314,11 @@ const heroSlides = ref([
   },
   {
     id: 11,
-    title: 'OPPO Find X8 Pro',
+    title: 'OPPO Find X9 Pro',
     description: 'Hasselblad kamera sistemi, Dimensity 9400 ve 5910 mAh dev batarya.',
     badge: 'Telefon & Mobil',
     image: '/hero-banners/find-x9-pro.png',
-    productName: 'OPPO Find X8 Pro'
+    productName: 'OPPO Find X9 Pro'
   },
   {
     id: 12,

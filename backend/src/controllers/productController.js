@@ -74,7 +74,7 @@ async function getFeaturedProducts(req, res) {
         { model: Category, attributes: ['id', 'name'] },
         { model: Review, attributes: ['rating'] },
       ],
-      limit: 10,
+      limit: 5,
     });
 
     const result = products.map((p) => {
