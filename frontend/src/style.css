@@ -1,0 +1,269 @@
+/* ---------- TASARIM SİSTEMİ (Design Tokens) — Premium Dark / Cyberpunk ---------- */
+:root {
+  /* Renkler */
+  --color-ink: #eef0fb;
+  --color-chrome: #0a0a0f;
+  --color-ink-soft: #15171f;
+  --color-cloud: #0a0a0f;
+  --color-surface: #15171f;
+  --color-volt: #44d62c;
+  --color-volt-dark: #35a821;
+  --color-ember: #ff2e63;
+  --color-slate: #9aa0b4;
+  --color-line: rgba(255, 255, 255, 0.08);
+  --color-success: #44d62c;
+  --color-danger: #ff4757;
+
+  /* Tipografi */
+  --font-display: 'Space Grotesk', sans-serif;
+  --font-body: 'Inter', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  --radius: 12px;
+  --radius-sm: 8px;
+  --radius-lg: 16px;
+
+  /* Premium glassmorphism */
+  --glass-bg: rgba(21, 23, 31, 0.75);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-blur: blur(20px);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+::selection {
+  background: rgba(68, 214, 44, 0.3);
+  color: #fff;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-body);
+  color: var(--color-ink);
+  background-color: var(--color-cloud);
+  background-image:
+    radial-gradient(ellipse 800px 400px at 50% -10%, rgba(68, 214, 44, 0.14), transparent),
+    radial-gradient(circle, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+  background-size: auto, 24px 24px;
+  background-attachment: fixed;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-display);
+  letter-spacing: -0.01em;
+}
+
+button {
+  font-family: var(--font-body);
+  color: inherit;
+}
+
+input,
+select,
+textarea {
+  font-family: inherit;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1.5px solid var(--color-line);
+  border-radius: var(--radius-sm);
+  font-size: 0.95rem;
+  background: var(--color-surface);
+  color: var(--color-ink);
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+input[type="checkbox"],
+input[type="radio"] {
+  width: auto;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: none;
+  accent-color: var(--color-volt);
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--color-volt);
+  box-shadow: 0 0 0 3px rgba(68, 214, 44, 0.15);
+}
+
+select option {
+  background: var(--color-surface);
+  color: var(--color-ink);
+}
+
+.btn-primary {
+  background: var(--color-volt);
+  color: #0b0f19;
+  border: none;
+  padding: 11px 20px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 0.95rem;
+  font-weight: 700;
+  transition: all 0.2s ease;
+  letter-spacing: 0.02em;
+}
+
+.btn-primary:hover {
+  background: var(--color-volt-dark);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 15px rgba(68, 214, 44, 0.3);
+}
+
+.btn-primary:active {
+  transform: scale(0.98);
+}
+
+.btn-primary:disabled {
+  background: #3a3d4a;
+  color: #6b7280;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.error-message {
+  color: var(--color-danger);
+  background: rgba(255, 46, 99, 0.1);
+  border: 1px solid rgba(255, 46, 99, 0.2);
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  margin-bottom: 12px;
+  font-size: 0.9rem;
+}
+
+.card {
+  background: var(--color-surface);
+  border-radius: var(--radius);
+  border: 1px solid var(--color-line);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  padding: 18px;
+  width: 99%;
+  margin: 0 auto;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+/* Glassmorphism card */
+.glass-card {
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+.price-mono {
+  font-family: var(--font-mono);
+  font-weight: 600;
+}
+
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-slate);
+}
+
+.page-btn.active {
+  background-color: var(--color-volt) !important;
+  color: #000000 !important;
+  border-color: var(--color-volt) !important;
+  font-weight: 700;
+}
+
+/* ---- Premium shimmer loading animation ---- */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.shimmer {
+  background: linear-gradient(90deg, var(--color-surface) 25%, rgba(255,255,255,0.06) 50%, var(--color-surface) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+/* ---- Smooth fade-in animation ---- */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.fade-in-up {
+  animation: fadeInUp 0.5s ease-out forwards;
+}
+
+/* ---- Pulse glow for volt elements ---- */
+@keyframes pulseGlow {
+  0%, 100% { box-shadow: 0 0 8px rgba(68, 214, 44, 0.3); }
+  50% { box-shadow: 0 0 20px rgba(68, 214, 44, 0.6); }
+}
+
+/* ---- Custom scrollbar ---- */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-cloud);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+/* ---- Link hover glow ---- */
+a {
+  transition: color 0.2s ease;
+}
+
+/* ---- MOBİL UYUMLULUK VE SIZMA ÖNLEMLERİ ---- */
+@media (max-width: 768px) {
+  body {
+    overflow-x: hidden;
+  }
+  
+  .card {
+    width: 100%;
+    padding: 14px;
+    border-radius: var(--radius-sm);
+  }
+
+  input, select, textarea {
+    font-size: 16px; /* iOS Otomatik Yakınlaştırma (zoom) yapmasın diye 16px */
+    padding: 10px;
+  }
+
+  .btn-primary {
+    padding: 12px 16px;
+  }
+}
