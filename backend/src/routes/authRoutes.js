@@ -12,5 +12,6 @@ router.put('/password', protect, authController.changePassword);
 
 router.post('/forgot-password', authController.forgotPassword);
 router.post('/reset-password', authController.resetPassword);
+router.post('/subscribe-newsletter', authController.subscribeNewsletter);
 
 module.exports = router;

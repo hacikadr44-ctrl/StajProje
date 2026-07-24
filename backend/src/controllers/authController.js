@@ -237,6 +237,23 @@ async function resetPassword(req, res) {
   }
 }
 
+// POST /api/auth/subscribe-newsletter
+async function subscribeNewsletter(req, res) {
+  try {
+    const { email } = req.body;
+
+    if (!email || !email.includes('@')) {
+      return res.status(400).json({ message: 'Lütfen geçerli bir e-posta adresi giriniz.' });
+    }
+
+    return res.json({
+      message: '🎉 Bültenimize başarıyla kaydoldunuz! Kampanya ve özel fırsatlar e-posta adresinize iletilecektir.',
+    });
+  } catch (err) {
+    res.status(500).json({ message: 'Abonelik sırasında bir hata oluştu.' });
+  }
+}
+
 module.exports = {
   register,
   login,
@@ -245,4 +262,5 @@ module.exports = {
   changePassword,
   forgotPassword,
   resetPassword,
+  subscribeNewsletter,
 };

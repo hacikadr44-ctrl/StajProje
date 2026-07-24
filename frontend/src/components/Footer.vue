@@ -1,3 +1,37 @@
+<script setup>
+import { ref } from 'vue'
+import api from '../api/axios'
+
+const email = ref('')
+const loading = ref(false)
+const message = ref('')
+const isError = ref(false)
+
+async function handleSubscribe() {
+  if (!email.value || !email.value.includes('@')) {
+    message.value = 'Lütfen geçerli bir e-posta adresi giriniz.'
+    isError.value = true
+    return
+  }
+
+  loading.value = true
+  message.value = ''
+  isError.value = false
+
+  try {
+    const res = await api.post('/auth/subscribe-newsletter', { email: email.value })
+    message.value = res.data?.message || 'Bültenimize başarıyla kaydoldunuz! Teşekkür ederiz 🎉'
+    isError.value = false
+    email.value = ''
+  } catch (err) {
+    message.value = err.response?.data?.message || 'Abonelik oluşturulurken bir hata oluştu.'
+    isError.value = true
+  } finally {
+    loading.value = false
+  }
+}
+</script>
+
 <template>
   <footer class="footer">
     <div class="footer-content">
@@ -7,10 +41,24 @@
           <h3>🔔 Kampanyalardan Haberdar Olun</h3>
           <p>En yeni ürünler ve özel indirimleri e-posta ile takip edin.</p>
         </div>
-        <form class="newsletter-form" @submit.prevent>
-          <input type="email" placeholder="E-posta adresiniz" />
-          <button type="submit" class="btn-primary">Abone Ol</button>
-        </form>
+        <div class="newsletter-box">
+          <form class="newsletter-form" @submit.prevent="handleSubscribe">
+            <input
+              v-model="email"
+              type="email"
+              placeholder="E-posta adresiniz"
+              :disabled="loading"
+              required
+            />
+            <button type="submit" class="btn-primary" :disabled="loading">
+              <span v-if="loading" class="spinner">⏳</span>
+              <span v-else>Abone Ol</span>
+            </button>
+          </form>
+          <p v-if="message" :class="['newsletter-feedback', isError ? 'feedback-error' : 'feedback-success']">
+            {{ message }}
+          </p>
+        </div>
       </div>
 
       <div class="footer-grid">
@@ -80,6 +128,7 @@
         <span class="payment-label">Güvenli Ödeme Yöntemleri</span>
         <div class="payment-icons">
           <span class="payment-badge">💳 Visa</span>
+          <span class="payment-badge">💳 Troy</span>
           <span class="payment-badge">💳 Mastercard</span>
           <span class="payment-badge">🏦 Havale/EFT</span>
           <span class="payment-badge">🚪 Kapıda Ödeme</span>
@@ -127,10 +176,15 @@
   margin: 0;
   font-size: 0.85rem;
 }
+.newsletter-box {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 320px;
+}
 .newsletter-form {
   display: flex;
   gap: 8px;
-  min-width: 300px;
 }
 .newsletter-form input {
   flex: 1;
@@ -141,6 +195,23 @@
 .newsletter-form .btn-primary {
   white-space: nowrap;
   padding: 10px 20px;
+  min-width: 105px;
+}
+.newsletter-feedback {
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 500;
+  animation: fadeIn 0.3s ease;
+}
+.feedback-success {
+  color: var(--color-volt);
+}
+.feedback-error {
+  color: var(--color-danger);
+}
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 /* Grid */
