@@ -1,20 +1,16 @@
-const { Review, User, Order, OrderItem } = require('../models');
+const { reviewRepository } = require('../repositories');
 
 // GET /api/products/:id/reviews
 async function getReviews(req, res) {
   try {
-    const reviews = await Review.findAll({
-      where: { productId: req.params.id },
-      include: [{ model: User, attributes: ['id', 'name'] }],
-      order: [['createdAt', 'DESC']],
-    });
+    const reviews = await reviewRepository.findProductReviews(req.params.id);
     res.json(reviews);
   } catch (err) {
     res.status(500).json({ message: 'Yorumlar alınırken hata oluştu.', error: err.message });
   }
 }
 
-// POST /api/products/:id/reviews  { rating, comment }  (giriş yapmış kullanıcı)
+// POST /api/products/:id/reviews { rating, comment } (giriş yapmış kullanıcı)
 async function createReview(req, res) {
   try {
     const productId = req.params.id;
@@ -24,24 +20,15 @@ async function createReview(req, res) {
       return res.status(400).json({ message: 'Puan 1 ile 5 arasında olmalıdır.' });
     }
 
-   // Kullanıcı bu ürünü gerçekten satın almış VE siparişi "tamamlandı" olmuş mu kontrol ediyoruz.
-    const hasPurchased = await OrderItem.findOne({
-      where: { productId },
-      include: [
-        {
-          model: Order,
-          where: { userId: req.user.id, status: 'tamamlandi' },
-          required: true,
-        },
-      ],
-    });
+    // Kullanıcı bu ürünü gerçekten satın almış VE siparişi "tamamlandı" olmuş mu kontrol ediyoruz.
+    const hasPurchased = await reviewRepository.checkUserPurchasedProduct(req.user.id, productId);
 
     if (!hasPurchased) {
       return res.status(403).json({ message: 'Bu ürünü satın almadan yorum yapamazsınız.' });
     }
 
     // Kullanıcı bu ürüne daha önce yorum yaptıysa, yeni yorum yerine mevcut yorumu güncelliyoruz
-    const existingReview = await Review.findOne({ where: { userId: req.user.id, productId } });
+    const existingReview = await reviewRepository.findUserReviewForProduct(req.user.id, productId);
 
     let review;
     if (existingReview) {
@@ -49,7 +36,7 @@ async function createReview(req, res) {
       existingReview.comment = comment;
       review = await existingReview.save();
     } else {
-      review = await Review.create({ userId: req.user.id, productId, rating, comment });
+      review = await reviewRepository.create({ userId: req.user.id, productId, rating, comment });
     }
 
     res.status(201).json(review);

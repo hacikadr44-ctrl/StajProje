@@ -1,12 +1,9 @@
-const { Address } = require('../models');
+const { addressRepository } = require('../repositories');
 
 // GET /api/addresses
 async function getAddresses(req, res) {
   try {
-    const addresses = await Address.findAll({
-      where: { userId: req.user.id },
-      order: [['isDefault', 'DESC'], ['createdAt', 'DESC']],
-    });
+    const addresses = await addressRepository.findUserAddresses(req.user.id);
     res.json(addresses);
   } catch (err) {
     res.status(500).json({ message: 'Adresler alınırken hata oluştu.', error: err.message });
@@ -23,14 +20,14 @@ async function createAddress(req, res) {
     }
 
     if (isDefault) {
-      await Address.update({ isDefault: false }, { where: { userId: req.user.id } });
+      await addressRepository.resetUserDefaultAddresses(req.user.id);
     }
 
     // İlk adres ise otomatik varsayılan yap
-    const existingCount = await Address.count({ where: { userId: req.user.id } });
+    const existingCount = await addressRepository.count({ where: { userId: req.user.id } });
     const markDefault = isDefault || existingCount === 0;
 
-    const newAddress = await Address.create({
+    const newAddress = await addressRepository.create({
       userId: req.user.id,
       title: title || 'Ev Adresi',
       city,
@@ -52,13 +49,13 @@ async function updateAddress(req, res) {
     const { id } = req.params;
     const { title, city, district, address, phone, isDefault } = req.body;
 
-    const item = await Address.findOne({ where: { id, userId: req.user.id } });
+    const item = await addressRepository.findUserAddressById(id, req.user.id);
     if (!item) {
       return res.status(404).json({ message: 'Adres bulunamadı.' });
     }
 
     if (isDefault) {
-      await Address.update({ isDefault: false }, { where: { userId: req.user.id } });
+      await addressRepository.resetUserDefaultAddresses(req.user.id);
     }
 
     if (title !== undefined) item.title = title;
@@ -79,7 +76,7 @@ async function updateAddress(req, res) {
 async function deleteAddress(req, res) {
   try {
     const { id } = req.params;
-    const item = await Address.findOne({ where: { id, userId: req.user.id } });
+    const item = await addressRepository.findUserAddressById(id, req.user.id);
     if (!item) {
       return res.status(404).json({ message: 'Adres bulunamadı.' });
     }

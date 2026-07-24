@@ -1,9 +1,9 @@
-const { Category } = require('../models');
+const { categoryRepository } = require('../repositories');
 
 // GET /api/categories
 async function getCategories(req, res) {
   try {
-    const categories = await Category.findAll({ order: [['name', 'ASC']] });
+    const categories = await categoryRepository.findAllOrderedByName();
     res.json(categories);
   } catch (err) {
     res.status(500).json({ message: 'Kategoriler alınırken hata oluştu.', error: err.message });
@@ -16,7 +16,7 @@ async function createCategory(req, res) {
     const { name } = req.body;
     if (!name) return res.status(400).json({ message: 'Kategori adı zorunludur.' });
 
-    const category = await Category.create({ name });
+    const category = await categoryRepository.create({ name });
     res.status(201).json(category);
   } catch (err) {
     res.status(500).json({ message: 'Kategori eklenirken hata oluştu.', error: err.message });
@@ -26,7 +26,7 @@ async function createCategory(req, res) {
 // DELETE /api/categories/:id (sadece admin)
 async function deleteCategory(req, res) {
   try {
-    const category = await Category.findByPk(req.params.id);
+    const category = await categoryRepository.findById(req.params.id);
     if (!category) return res.status(404).json({ message: 'Kategori bulunamadı.' });
 
     await category.destroy();

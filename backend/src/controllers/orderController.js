@@ -1,7 +1,7 @@
-const { CartItem, Product, Order, OrderItem, User, Category } = require('../models');
+const { orderRepository, cartRepository, userRepository, productRepository } = require('../repositories');
 const sequelize = require('../config/db');
 
-// POST /api/orders  { city, district, address }
+// POST /api/orders { city, district, address }
 async function createOrder(req, res) {
   const t = await sequelize.transaction();
   try {
@@ -11,11 +11,7 @@ async function createOrder(req, res) {
       return res.status(400).json({ message: 'İl, ilçe ve açık adres zorunludur.' });
     }
 
-    const cartItems = await CartItem.findAll({
-      where: { userId: req.user.id },
-      include: [{ model: Product }],
-      transaction: t,
-    });
+    const cartItems = await cartRepository.findByUserId(req.user.id, { transaction: t });
 
     if (cartItems.length === 0) {
       await t.rollback();
@@ -35,13 +31,13 @@ async function createOrder(req, res) {
       0
     );
 
-    const order = await Order.create(
+    const order = await orderRepository.create(
       { userId: req.user.id, totalPrice, city, district, address, status: 'beklemede' },
       { transaction: t }
     );
 
     for (const item of cartItems) {
-      await OrderItem.create(
+      await orderRepository.createOrderItem(
         {
           orderId: order.id,
           productId: item.Product.id,
@@ -57,7 +53,7 @@ async function createOrder(req, res) {
     }
 
     // Sepeti temizle
-    await CartItem.destroy({ where: { userId: req.user.id }, transaction: t });
+    await cartRepository.clearCart(req.user.id, { transaction: t });
 
     await t.commit();
     res.status(201).json(order);
@@ -67,14 +63,10 @@ async function createOrder(req, res) {
   }
 }
 
-// GET /api/orders/my  -> giriş yapan kullanıcının kendi siparişleri
+// GET /api/orders/my -> giriş yapan kullanıcının kendi siparişleri
 async function getMyOrders(req, res) {
   try {
-    const orders = await Order.findAll({
-      where: { userId: req.user.id },
-      include: [{ model: OrderItem, include: [Product] }],
-      order: [['createdAt', 'DESC']],
-    });
+    const orders = await orderRepository.findUserOrders(req.user.id);
     res.json(orders);
   } catch (err) {
     res.status(500).json({ message: 'Siparişler alınırken hata oluştu.', error: err.message });
@@ -86,13 +78,8 @@ async function getOrderById(req, res) {
   try {
     const { id } = req.params;
     const whereCondition = req.user.role === 'admin' ? { id } : { id, userId: req.user.id };
-    const order = await Order.findOne({
-      where: whereCondition,
-      include: [
-        { model: OrderItem, include: [Product] },
-        { model: User, attributes: ['id', 'name', 'email'] },
-      ],
-    });
+    const order = await orderRepository.findOrderById(whereCondition);
+
     if (!order) {
       return res.status(404).json({ message: 'Sipariş bulunamadı.' });
     }
@@ -107,11 +94,7 @@ async function cancelOrder(req, res) {
   const t = await sequelize.transaction();
   try {
     const { id } = req.params;
-    const order = await Order.findOne({
-      where: { id, userId: req.user.id },
-      include: [{ model: OrderItem, include: [Product] }],
-      transaction: t,
-    });
+    const order = await orderRepository.findOrderById({ id, userId: req.user.id }, t);
 
     if (!order) {
       await t.rollback();
@@ -142,23 +125,20 @@ async function cancelOrder(req, res) {
   }
 }
 
-// GET /api/orders  (sadece admin) -> tüm siparişler
+// GET /api/orders (sadece admin) -> tüm siparişler
 async function getAllOrders(req, res) {
   try {
-    const orders = await Order.findAll({
-      include: [{ model: OrderItem, include: [Product] }, { model: User, attributes: ['id', 'name', 'email'] }],
-      order: [['createdAt', 'DESC']],
-    });
+    const orders = await orderRepository.findAllOrders();
     res.json(orders);
   } catch (err) {
     res.status(500).json({ message: 'Siparişler alınırken hata oluştu.', error: err.message });
   }
 }
 
-// PUT /api/orders/:id/status  (sadece admin) { status }
+// PUT /api/orders/:id/status (sadece admin) { status }
 async function updateOrderStatus(req, res) {
   try {
-    const order = await Order.findByPk(req.params.id);
+    const order = await orderRepository.findById(req.params.id);
     if (!order) return res.status(404).json({ message: 'Sipariş bulunamadı.' });
 
     order.status = req.body.status;
@@ -172,9 +152,7 @@ async function updateOrderStatus(req, res) {
 // GET /api/orders/stats (sadece admin) -> İstatistik ve Dashboard verileri
 async function getAdminStats(req, res) {
   try {
-    const allOrders = await Order.findAll({
-      include: [{ model: OrderItem, include: [{ model: Product, include: [Category] }] }],
-    });
+    const allOrders = await orderRepository.findAllForStats();
 
     const totalOrders = allOrders.length;
     let totalRevenue = 0;
@@ -217,8 +195,8 @@ async function getAdminStats(req, res) {
       }
     });
 
-    const totalUsers = await User.count();
-    const totalProducts = await Product.count();
+    const totalUsers = await userRepository.count();
+    const totalProducts = await productRepository.count();
 
     const categoryStats = Object.keys(categorySales).map(category => ({
       category,

@@ -1,4 +1,4 @@
-const { Product, Category, Review, User } = require('../models');
+const { productRepository } = require('../repositories');
 const { Op } = require('sequelize');
 
 // ---- GÜVENLİK: Input sanitizasyon yardımcısı ----
@@ -40,14 +40,7 @@ async function getProducts(req, res) {
       }
     }
 
-    const products = await Product.findAll({
-      where,
-      include: [
-        { model: Category, attributes: ['id', 'name'] },
-        { model: Review, attributes: ['rating'] },
-      ],
-      order: [['createdAt', 'DESC']],
-    });
+    const products = await productRepository.findWithFilters(where);
 
     // Her ürün için ortalama puan ve yorum sayısını ekliyoruz
     const result = products.map((p) => {
@@ -68,14 +61,7 @@ async function getProducts(req, res) {
 // GET /api/products/featured -> ana sayfa "Öne Çıkanlar" bölümü için
 async function getFeaturedProducts(req, res) {
   try {
-    const products = await Product.findAll({
-      where: { isFeatured: true },
-      include: [
-        { model: Category, attributes: ['id', 'name'] },
-        { model: Review, attributes: ['rating'] },
-      ],
-      limit: 5,
-    });
+    const products = await productRepository.findFeatured();
 
     const result = products.map((p) => {
       const json = p.toJSON();
@@ -95,18 +81,8 @@ async function getFeaturedProducts(req, res) {
 // GET /api/products/filters -> filtre seçeneklerini doldurmak için (marka listesi, fiyat aralığı)
 async function getFilterOptions(req, res) {
   try {
-    const brands = await Product.findAll({
-      attributes: [[Product.sequelize.fn('DISTINCT', Product.sequelize.col('brand')), 'brand']],
-      where: { brand: { [Op.ne]: null } },
-      raw: true,
-    });
-    const prices = await Product.findAll({
-      attributes: [
-        [Product.sequelize.fn('MIN', Product.sequelize.col('price')), 'minPrice'],
-        [Product.sequelize.fn('MAX', Product.sequelize.col('price')), 'maxPrice'],
-      ],
-      raw: true,
-    });
+    const brands = await productRepository.getDistinctBrands();
+    const prices = await productRepository.getPriceMinMax();
 
     res.json({
       brands: brands.map((b) => b.brand).filter(Boolean).sort(),
@@ -124,12 +100,7 @@ async function getProductById(req, res) {
     const id = parseInt(req.params.id, 10);
     if (isNaN(id)) return res.status(400).json({ message: 'Geçersiz ürün ID.' });
 
-    const product = await Product.findByPk(id, {
-      include: [
-        { model: Category, attributes: ['id', 'name'] },
-        { model: Review, include: [{ model: User, attributes: ['id', 'name'] }] },
-      ],
-    });
+    const product = await productRepository.findByIdWithDetails(id);
     if (!product) {
       return res.status(404).json({ message: 'Ürün bulunamadı.' });
     }
@@ -145,7 +116,7 @@ async function getProductById(req, res) {
   }
 }
 
-// POST /api/products  (sadece admin)
+// POST /api/products (sadece admin)
 async function createProduct(req, res) {
   try {
     const { name, brand, description, price, originalPrice, stock, imageUrl, images, specs, categoryId, isFeatured } = req.body;
@@ -158,7 +129,7 @@ async function createProduct(req, res) {
       return res.status(400).json({ message: 'Geçerli bir fiyat giriniz.' });
     }
 
-    const product = await Product.create({
+    const product = await productRepository.create({
       name: sanitize(name),
       brand: brand ? sanitize(brand) : null,
       description: description ? sanitize(description) : null,
@@ -177,13 +148,13 @@ async function createProduct(req, res) {
   }
 }
 
-// PUT /api/products/:id  (sadece admin)
+// PUT /api/products/:id (sadece admin)
 async function updateProduct(req, res) {
   try {
     const id = parseInt(req.params.id, 10);
     if (isNaN(id)) return res.status(400).json({ message: 'Geçersiz ürün ID.' });
 
-    const product = await Product.findByPk(id);
+    const product = await productRepository.findById(id);
     if (!product) {
       return res.status(404).json({ message: 'Ürün bulunamadı.' });
     }
@@ -194,13 +165,13 @@ async function updateProduct(req, res) {
   }
 }
 
-// DELETE /api/products/:id  (sadece admin)
+// DELETE /api/products/:id (sadece admin)
 async function deleteProduct(req, res) {
   try {
     const id = parseInt(req.params.id, 10);
     if (isNaN(id)) return res.status(400).json({ message: 'Geçersiz ürün ID.' });
 
-    const product = await Product.findByPk(id);
+    const product = await productRepository.findById(id);
     if (!product) {
       return res.status(404).json({ message: 'Ürün bulunamadı.' });
     }

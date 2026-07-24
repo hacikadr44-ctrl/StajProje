@@ -1,35 +1,31 @@
-const { CartItem, Product } = require('../models');
+const { cartRepository, productRepository } = require('../repositories');
 
-// GET /api/cart  -> giriş yapmış kullanıcının sepetini getirir
+// GET /api/cart -> giriş yapmış kullanıcının sepetini getirir
 async function getCart(req, res) {
   try {
-    const items = await CartItem.findAll({
-      where: { userId: req.user.id },
-      include: [{ model: Product }],
-    });
+    const items = await cartRepository.findByUserId(req.user.id);
     res.json(items);
   } catch (err) {
     res.status(500).json({ message: 'Sepet alınırken hata oluştu.', error: err.message });
   }
 }
 
-// POST /api/cart  { productId, quantity }
+// POST /api/cart { productId, quantity }
 async function addToCart(req, res) {
   try {
     const { productId, quantity } = req.body;
     if (!productId) return res.status(400).json({ message: 'productId zorunludur.' });
 
-    const product = await Product.findByPk(productId);
+    const product = await productRepository.findById(productId);
     if (!product) return res.status(404).json({ message: 'Ürün bulunamadı.' });
 
-    // Ürün zaten sepette varsa miktarını artır, yoksa yeni satır ekle
-    let cartItem = await CartItem.findOne({ where: { userId: req.user.id, productId } });
+    let cartItem = await cartRepository.findUserItem(req.user.id, productId);
 
     if (cartItem) {
       cartItem.quantity += quantity || 1;
       await cartItem.save();
     } else {
-      cartItem = await CartItem.create({
+      cartItem = await cartRepository.create({
         userId: req.user.id,
         productId,
         quantity: quantity || 1,
@@ -42,10 +38,10 @@ async function addToCart(req, res) {
   }
 }
 
-// PUT /api/cart/:id  { quantity }
+// PUT /api/cart/:id { quantity }
 async function updateCartItem(req, res) {
   try {
-    const cartItem = await CartItem.findOne({ where: { id: req.params.id, userId: req.user.id } });
+    const cartItem = await cartRepository.findUserItemById(req.params.id, req.user.id);
     if (!cartItem) return res.status(404).json({ message: 'Sepet öğesi bulunamadı.' });
 
     cartItem.quantity = req.body.quantity;
@@ -59,7 +55,7 @@ async function updateCartItem(req, res) {
 // DELETE /api/cart/:id
 async function removeFromCart(req, res) {
   try {
-    const cartItem = await CartItem.findOne({ where: { id: req.params.id, userId: req.user.id } });
+    const cartItem = await cartRepository.findUserItemById(req.params.id, req.user.id);
     if (!cartItem) return res.status(404).json({ message: 'Sepet öğesi bulunamadı.' });
 
     await cartItem.destroy();

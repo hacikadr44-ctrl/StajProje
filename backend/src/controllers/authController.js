@@ -1,6 +1,6 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const { User } = require('../models');
+const { userRepository } = require('../repositories');
 
 function generateToken(user) {
   return jwt.sign(
@@ -28,14 +28,14 @@ async function register(req, res) {
       return res.status(400).json({ message: 'Geçerli bir e-posta adresi giriniz.' });
     }
 
-    const existingUser = await User.findOne({ where: { email } });
+    const existingUser = await userRepository.findByEmail(email);
     if (existingUser) {
       return res.status(400).json({ message: 'Bu e-posta zaten kayıtlı.' });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    const user = await User.create({
+    const user = await userRepository.create({
       name,
       email,
       password: hashedPassword,
@@ -57,7 +57,7 @@ async function login(req, res) {
   try {
     const { email, password } = req.body;
 
-    const user = await User.findOne({ where: { email } });
+    const user = await userRepository.findByEmail(email);
     if (!user) {
       return res.status(401).json({ message: 'E-posta veya şifre hatalı.' });
     }
@@ -80,7 +80,7 @@ async function login(req, res) {
 // GET /api/auth/profile
 async function getProfile(req, res) {
   try {
-    const user = await User.findByPk(req.user.id, {
+    const user = await userRepository.findById(req.user.id, {
       attributes: ['id', 'name', 'email', 'role', 'createdAt'],
     });
     if (!user) {
@@ -106,13 +106,13 @@ async function updateProfile(req, res) {
       return res.status(400).json({ message: 'Geçerli bir e-posta adresi giriniz.' });
     }
 
-    const user = await User.findByPk(req.user.id);
+    const user = await userRepository.findById(req.user.id);
     if (!user) {
       return res.status(404).json({ message: 'Kullanıcı bulunamadı.' });
     }
 
     if (email !== user.email) {
-      const existing = await User.findOne({ where: { email } });
+      const existing = await userRepository.findByEmail(email);
       if (existing) {
         return res.status(400).json({ message: 'Bu e-posta adresi başka bir kullanıcı tarafından kullanılıyor.' });
       }
@@ -146,7 +146,7 @@ async function changePassword(req, res) {
       return res.status(400).json({ message: 'Yeni şifre en az 6 karakter olmalıdır.' });
     }
 
-    const user = await User.findByPk(req.user.id);
+    const user = await userRepository.findById(req.user.id);
     if (!user) {
       return res.status(404).json({ message: 'Kullanıcı bulunamadı.' });
     }
@@ -174,9 +174,8 @@ async function forgotPassword(req, res) {
       return res.status(400).json({ message: 'E-posta adresi giriniz.' });
     }
 
-    const user = await User.findOne({ where: { email } });
+    const user = await userRepository.findByEmail(email);
     if (!user) {
-      // Güvenlik gereği kullanıcı yoksa bile genel bir mesaj veriyoruz veya demo bildirimi yapıyoruz
       return res.json({
         message: 'Eğer bu e-posta adresiyle kayıtlı bir hesap varsa, şifre sıfırlama talimatları ve doğrulama kodu gönderildi.',
         demoCode: '123456',
@@ -193,7 +192,7 @@ async function forgotPassword(req, res) {
 
     res.json({
       message: 'Şifre sıfırlama koda e-posta adresinize gönderildi (Demo Akışı).',
-      demoCode: resetCode, // Demo gösterim kolaylığı için koda response'ta da yer veriyoruz
+      demoCode: resetCode,
     });
   } catch (err) {
     res.status(500).json({ message: 'İşlem sırasında hata oluştu.', error: err.message });
@@ -213,7 +212,7 @@ async function resetPassword(req, res) {
       return res.status(400).json({ message: 'Yeni şifre en az 6 karakter olmalıdır.' });
     }
 
-    const user = await User.findOne({ where: { email } });
+    const user = await userRepository.findByEmail(email);
     if (!user) {
       return res.status(400).json({ message: 'Geçersiz e-posta veya doğrulama kodu.' });
     }
