@@ -51,7 +51,9 @@ function handleLogout() {
 
     <div class="navbar-main">
       <div class="navbar-top">
-        <RouterLink to="/" class="brand"><span class="brand-mark">⚡</span> TeknoMarkt</RouterLink>
+        <RouterLink to="/" class="brand">
+          <img src="/logo.svg" alt="TeknoMarkt Logo" class="brand-logo" />
+        </RouterLink>
 
         <form class="search-form" @submit.prevent="handleSearch">
           <input v-model="searchQuery" placeholder="Ürün, kategori veya marka ara..." />
@@ -110,8 +112,9 @@ function handleLogout() {
     <div v-if="showMobileMenu" class="mobile-drawer-backdrop" @click="showMobileMenu = false"></div>
     <div v-if="showMobileMenu" class="mobile-drawer">
       <div class="mobile-drawer-header">
-        <span class="brand-mark">⚡</span>
-        <span class="mobile-title">Menü</span>
+        <RouterLink to="/" class="mobile-brand-link" @click="showMobileMenu = false">
+          <img src="/logo.svg" alt="TeknoMarkt Logo" class="mobile-brand-logo" />
+        </RouterLink>
         <button class="mobile-close" @click="showMobileMenu = false">✕</button>
       </div>
 
@@ -191,30 +194,34 @@ function handleLogout() {
   margin: 0 auto;
 }
 .brand {
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: 1.3rem;
-  color: white;
+  display: flex;
+  align-items: center;
   text-decoration: none;
-  display: flex;
-  align-items: center;
-  gap: 8px;
   white-space: nowrap;
-  transition: transform 0.2s ease;
 }
-.brand:hover {
-  transform: scale(1.02);
+.brand-logo {
+  height: 44px;
+  width: auto;
+  object-fit: contain;
+  display: block;
+  filter: drop-shadow(0 2px 10px rgba(68, 214, 44, 0.25));
+  transition: transform 0.25s ease, filter 0.25s ease;
 }
-.brand-mark {
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
-  background: linear-gradient(135deg, var(--color-volt), #2dd4bf);
+.brand-logo:hover {
+  transform: scale(1.03);
+  filter: drop-shadow(0 4px 18px rgba(68, 214, 44, 0.5));
+}
+.mobile-brand-link {
   display: flex;
   align-items: center;
-  justify-content: center;
-  font-size: 1rem;
-  box-shadow: 0 0 12px rgba(68, 214, 44, 0.4);
+  text-decoration: none;
+  flex: 1;
+}
+.mobile-brand-logo {
+  height: 38px;
+  width: auto;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 8px rgba(68, 214, 44, 0.3));
 }
 
 /* ---- DROPDOWN ---- */

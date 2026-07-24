@@ -16,7 +16,9 @@
       <div class="footer-grid">
         <!-- MARKA -->
         <div class="footer-col brand-col">
-          <p class="brand"><span class="brand-mark">⚡</span> TeknoMarkt</p>
+          <RouterLink to="/" class="footer-brand">
+            <img src="/logo.svg" alt="TeknoMarkt Logo" class="footer-logo-img" />
+          </RouterLink>
           <p class="tagline">Telefon, laptop, oyun, kamera ve daha fazlası — Türkiye'nin premium teknoloji mağazası.</p>
           <div class="social-icons">
             <a href="#" aria-label="Instagram" class="social-btn">
@@ -177,24 +179,21 @@
   color: var(--color-volt);
   padding-left: 4px;
 }
-.brand {
-  color: white;
-  font-family: var(--font-display);
-  font-weight: 700;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 0 0 8px;
+.footer-brand {
+  display: inline-block;
+  margin-bottom: 8px;
+  text-decoration: none;
 }
-.brand-mark {
-  width: 24px;
-  height: 24px;
-  border-radius: 6px;
-  background: linear-gradient(135deg, var(--color-volt), #2dd4bf);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.8rem;
+.footer-logo-img {
+  height: 40px;
+  width: auto;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 8px rgba(68, 214, 44, 0.2));
+  transition: transform 0.2s ease, filter 0.2s ease;
+}
+.footer-logo-img:hover {
+  transform: scale(1.03);
+  filter: drop-shadow(0 4px 14px rgba(68, 214, 44, 0.4));
 }
 .tagline {
   font-size: 0.85rem;
