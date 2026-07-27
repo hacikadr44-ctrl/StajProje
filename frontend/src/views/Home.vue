@@ -10,7 +10,38 @@ const router = useRouter()
 // ---- VERİ & FİLTRELEME DEĞİŞKENLERİ ----
 const products = ref([])
 const featuredProducts = ref([])
-const categories = ref([])
+const categoryOrderList = [
+  'Akıllı Saat',
+  'Depolama',
+  'Drone',
+  'Kamera',
+  'Klavye',
+  'Kulaklık',
+  'Laptop',
+  'Monitör',
+  'Mouse',
+  'Oyun',
+  'Ses',
+  'Telefon',
+  'Televizyon'
+]
+
+const defaultCategoryList = categoryOrderList.map((name, index) => ({
+  id: index + 1,
+  name
+}))
+
+const categories = ref(defaultCategoryList)
+
+const sortedCategories = computed(() => {
+  if (!categories.value || categories.value.length === 0) return defaultCategoryList
+  return [...categories.value].sort((a, b) => {
+    const ia = categoryOrderList.indexOf(a.name)
+    const ib = categoryOrderList.indexOf(b.name)
+    if (ia !== -1 && ib !== -1) return ia - ib
+    return a.name.localeCompare(b.name)
+  })
+})
 const filterOptions = ref({ brands: [], minPrice: 0, maxPrice: 0 })
 
 const search = ref('')
@@ -23,6 +54,22 @@ const currentPage = ref(1)
 const itemsPerPage = 28
 
 const categoryIcons = {
+  'Telefon': '/icons/categories/telefon.svg',
+  'Laptop': '/icons/categories/laptop.svg',
+  'Monitör': '/icons/categories/monitor.svg',
+  'Akıllı Saat': '/icons/categories/akilli-saat.svg',
+  'Mouse': '/icons/categories/mouse.svg',
+  'Klavye': '/icons/categories/klavye.svg',
+  'Oyun': '/icons/categories/oyun.svg',
+  'Kamera': '/icons/categories/kamera.svg',
+  'Drone': '/icons/categories/drone.svg',
+  'Ses': '/icons/categories/ses.svg',
+  'Depolama': '/icons/categories/depolama.svg',
+  'Kulaklık': '/icons/categories/kulaklik.svg',
+  'Televizyon': '/icons/categories/televizyon.svg',
+}
+
+const categoryEmojis = {
   'Telefon': '📱',
   'Laptop': '💻',
   'Monitör': '🖥️',
@@ -39,7 +86,31 @@ const categoryIcons = {
 }
 
 function getCategoryIcon(name) {
-  return categoryIcons[name] || '📦'
+  return categoryIcons[name] || '/icons/categories/depolama.svg'
+}
+
+function getCategoryEmoji(name) {
+  return categoryEmojis[name] || '📦'
+}
+
+// ---- CUSTOM CATEGORY DROPDOWN STATE ----
+const isCategoryDropdownOpen = ref(false)
+
+function getCategoryObj(catId) {
+  if (!catId) return null
+  return categories.value.find(c => Number(c.id) === Number(catId))
+}
+
+function selectCategoryDropdown(catId) {
+  selectedCategory.value = catId
+  isCategoryDropdownOpen.value = false
+}
+
+function handleGlobalClick(e) {
+  const dropdown = document.querySelector('.custom-category-dropdown')
+  if (dropdown && !dropdown.contains(e.target)) {
+    isCategoryDropdownOpen.value = false
+  }
 }
 
 // ---- URL İLE STATE SENKRONİZASYONU ----
@@ -161,7 +232,9 @@ function changePage(page) {
 async function fetchCategories() {
   try {
     const res = await api.get('/categories')
-    categories.value = res.data
+    if (res.data && res.data.length > 0) {
+      categories.value = res.data
+    }
   } catch (err) {
     console.error('Kategoriler çekilirken hata oluştu:', err)
   }
@@ -399,11 +472,13 @@ onMounted(() => {
   startHeroRotation()
   tickCountdown()
   countdownTimer = setInterval(tickCountdown, 1000)
+  document.addEventListener('click', handleGlobalClick)
 })
 
 onUnmounted(() => {
   stopHeroRotation()
   clearInterval(countdownTimer)
+  document.removeEventListener('click', handleGlobalClick)
 })
 
 let debounceTimer
@@ -486,7 +561,7 @@ function updateMouseTracking(e) {
           :class="{ active: selectedCategory === cat.id }"
           @click="selectCategory(cat.id)"
         >
-          <span class="cat-card-icon">{{ getCategoryIcon(cat.name) }}</span>
+          <span class="cat-card-icon"><img :src="getCategoryIcon(cat.name)" :alt="cat.name" class="cat-icon-img" /></span>
           <span class="cat-card-title">{{ cat.name }}</span>
           <span class="cat-card-count">10 Ürün</span>
         </div>
@@ -586,25 +661,80 @@ function updateMouseTracking(e) {
         </div>
       </div>
 
-      <!-- TÜM ÜRÜNLER KISMININ HEMEN ALTINDAKİ ÜRÜN ARAMA ALANI -->
+      <!-- TÜM ÜRÜNLER KISMININ HEMEN ALTINDAKİ ÜRÜN ARAMA & FİLTRELEME ALANI -->
       <div class="filters card tracking-light-box search-filter-container" @mousemove="updateMouseTracking">
         <div class="light-beam"></div>
         <div class="mouse-glow"></div>
         <div class="light-content filters-content-inner">
+          
+          <!-- 1. ARAMA GİRDİSİ -->
           <div class="search-input-wrapper tracking-light-input">
             <span class="search-icon-glow">🔍</span>
             <input v-model="search" type="text" placeholder="Ürün, marka veya özellik ara..." class="tracking-search-field" />
           </div>
-          <select v-model="selectedCategory" class="tracking-select-field">
-            <option value="">Tüm Kategoriler (13)</option>
-            <option v-for="cat in categories" :key="cat.id" :value="cat.id">{{ getCategoryIcon(cat.name) }} {{ cat.name }}</option>
-          </select>
+
+          <!-- 2. KATEGORİ DROPDOWN (TÜM MARKALAR YANINDA - TIKLANDIĞINDA 13 KATEGORİ SVG İKONUYLA AÇILIR) -->
+          <div class="custom-category-dropdown">
+            <button 
+              type="button" 
+              class="custom-dropdown-trigger tracking-select-field" 
+              @click.stop="isCategoryDropdownOpen = !isCategoryDropdownOpen"
+            >
+              <div class="selected-cat-info">
+                <img 
+                  v-if="selectedCategory && getCategoryObj(selectedCategory)" 
+                  :src="getCategoryIcon(getCategoryObj(selectedCategory).name)" 
+                  :alt="getCategoryObj(selectedCategory).name" 
+                  class="dropdown-cat-svg-icon" 
+                />
+                <span v-else class="dropdown-all-icon">⚡</span>
+                <span class="selected-cat-text">
+                  {{ selectedCategory && getCategoryObj(selectedCategory) ? getCategoryObj(selectedCategory).name : 'Tüm Kategoriler (13)' }}
+                </span>
+              </div>
+              <span class="dropdown-arrow-icon" :class="{ open: isCategoryDropdownOpen }">▾</span>
+            </button>
+
+            <!-- AÇILAN 13 KATEGORİ LİSTESİ -->
+            <div v-if="isCategoryDropdownOpen" class="custom-dropdown-menu">
+              <div 
+                class="dropdown-item dropdown-header-item" 
+                :class="{ selected: selectedCategory === '' }" 
+                @click="selectCategoryDropdown('')"
+              >
+                <span class="dropdown-all-icon">⚡</span>
+                <span>Tüm Kategoriler (13)</span>
+              </div>
+
+              <div class="dropdown-divider"></div>
+
+              <!-- 13 KATEGORİ İSMİ VE YENİ SVG İKONLARI (GÜNCEL SIRALAMA) -->
+              <div 
+                v-for="cat in sortedCategories" 
+                :key="cat.id" 
+                class="dropdown-item" 
+                :class="{ selected: Number(selectedCategory) === Number(cat.id) }" 
+                @click="selectCategoryDropdown(cat.id)"
+              >
+                <img :src="getCategoryIcon(cat.name)" :alt="cat.name" class="dropdown-cat-svg-img" />
+                <span>{{ cat.name }}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 3. TÜM MARKALAR -->
           <select v-model="selectedBrand" class="tracking-select-field">
             <option value="">Tüm Markalar</option>
             <option v-for="brand in filterOptions.brands" :key="brand" :value="brand">{{ brand }}</option>
           </select>
+
+          <!-- 4. MİN TL -->
           <input v-model="minPrice" type="number" :placeholder="`Min TL (${filterOptions.minPrice || 0})`" class="tracking-price-field" />
+
+          <!-- 5. MAX TL -->
           <input v-model="maxPrice" type="number" :placeholder="`Max TL (${filterOptions.maxPrice || 0})`" class="tracking-price-field" />
+
+          <!-- 6. TEMİZLE BUTONU -->
           <button class="clear-btn tracking-clear-btn" @click="clearFilters">Temizle</button>
         </div>
       </div>
@@ -877,7 +1007,24 @@ function updateMouseTracking(e) {
 }
 
 .cat-card-icon {
-  font-size: 1.8rem;
+  width: 52px;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 4px;
+}
+
+.cat-icon-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.25));
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.category-card:hover .cat-icon-img {
+  transform: scale(1.15) translateY(-2px);
 }
 
 .cat-card-title {
@@ -1105,6 +1252,228 @@ function updateMouseTracking(e) {
 .bs-name { margin: 0; font-size: 0.8rem; line-height: 1.3; }
 .bs-price { margin: 2px 0 0; font-size: 0.8rem; color: var(--color-ink); }
 
+/* CUSTOM CATEGORY DROPDOWN WITH SVG ICONS */
+.custom-category-dropdown {
+  position: relative;
+  flex: 1;
+  min-width: 170px;
+}
+
+.custom-dropdown-trigger {
+  width: 100%;
+  height: 100%;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 14px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-sm);
+  color: var(--color-ink);
+  font-size: 0.88rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-sizing: border-box;
+}
+
+.custom-dropdown-trigger:hover,
+.custom-dropdown-trigger:focus {
+  border-color: var(--color-volt);
+  box-shadow: 0 0 10px rgba(68, 214, 44, 0.2);
+}
+
+.selected-cat-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  overflow: hidden;
+}
+
+.dropdown-cat-svg-icon {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+  flex-shrink: 0;
+}
+
+.dropdown-all-icon {
+  font-size: 1rem;
+  flex-shrink: 0;
+}
+
+.selected-cat-text {
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+}
+
+.dropdown-arrow-icon {
+  font-size: 0.8rem;
+  color: var(--color-slate);
+  transition: transform 0.2s ease;
+  margin-left: 8px;
+}
+
+.dropdown-arrow-icon.open {
+  transform: rotate(180deg);
+  color: var(--color-volt);
+}
+
+.search-filter-container {
+  overflow: visible !important;
+  z-index: 100 !important;
+}
+
+.search-filter-container .filters-content-inner {
+  overflow: visible !important;
+}
+
+.custom-dropdown-menu {
+  position: absolute !important;
+  top: calc(100% + 6px) !important;
+  left: 0 !important;
+  width: 100% !important;
+  min-width: 220px !important;
+  max-height: 320px !important;
+  overflow-y: auto !important;
+  background: #0f172a !important;
+  border: 1px solid var(--color-volt) !important;
+  border-radius: var(--radius-sm) !important;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.8) !important;
+  z-index: 9999 !important;
+  padding: 6px !important;
+  box-sizing: border-box !important;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-line) transparent;
+}
+
+.custom-dropdown-menu::-webkit-scrollbar {
+  width: 5px;
+}
+.custom-dropdown-menu::-webkit-scrollbar-thumb {
+  background: var(--color-line);
+  border-radius: 4px;
+}
+
+.dropdown-header-item {
+  font-weight: 700;
+  border-radius: 8px;
+}
+
+.dropdown-divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.1);
+  margin: 4px 6px;
+}
+
+.dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: 8px;
+  color: var(--color-ink);
+  font-size: 0.86rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.dropdown-item:hover {
+  background: rgba(68, 214, 44, 0.12);
+  color: var(--color-volt);
+}
+
+.dropdown-item.selected {
+  background: rgba(68, 214, 44, 0.2);
+  color: var(--color-volt);
+  font-weight: 700;
+}
+
+.dropdown-cat-svg-img {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+  flex-shrink: 0;
+  transition: transform 0.2s ease;
+}
+
+.dropdown-item:hover .dropdown-cat-svg-img {
+  transform: scale(1.15);
+}
+
+/* FİLTRELEME KUTUSU ALTI: 13 KATEGORİ İKONLU DÜĞME STRİP */
+.filter-categories-pills-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 12px 14px 4px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  margin-top: 10px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-line) transparent;
+}
+
+.filter-categories-pills-row::-webkit-scrollbar {
+  height: 4px;
+}
+.filter-categories-pills-row::-webkit-scrollbar-thumb {
+  background: var(--color-line);
+  border-radius: 4px;
+}
+
+.cat-pill-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 13px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--color-line);
+  border-radius: 20px;
+  color: var(--color-ink);
+  font-size: 0.82rem;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+  flex-shrink: 0;
+}
+
+.cat-pill-btn:hover {
+  border-color: var(--color-volt);
+  transform: translateY(-2px);
+  background: rgba(68, 214, 44, 0.08);
+}
+
+.cat-pill-btn.active {
+  background: rgba(68, 214, 44, 0.16);
+  border-color: var(--color-volt);
+  color: var(--color-volt);
+  box-shadow: 0 0 10px rgba(68, 214, 44, 0.25);
+  font-weight: 700;
+}
+
+.cat-pill-svg-img {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+  transition: transform 0.2s ease;
+}
+
+.cat-pill-btn:hover .cat-pill-svg-img {
+  transform: scale(1.15);
+}
+
+.cat-pill-icon-all {
+  font-size: 0.9rem;
+}
+
 .filters {
   display: flex;
   flex-wrap: wrap;
@@ -1194,23 +1563,9 @@ function updateMouseTracking(e) {
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4) !important;
 }
 
-.tracking-light-box .light-beam {
-  position: absolute !important;
-  top: -70% !important;
-  left: -70% !important;
-  width: 240% !important;
-  height: 240% !important;
-  background: conic-gradient(
-    transparent 0deg,
-    transparent 260deg,
-    rgba(68, 214, 44, 0.3) 290deg,
-    #44d62c 325deg,
-    #00ffff 348deg,
-    #44d62c 360deg
-  ) !important;
-  animation: spinTrackingLightBeam 3.5s linear infinite !important;
-  z-index: 0 !important;
-  filter: drop-shadow(0 0 12px rgba(68, 214, 44, 0.9)) !important;
+.tracking-light-box .light-beam,
+.light-beam {
+  display: none !important;
 }
 
 .tracking-light-box .mouse-glow {
@@ -1345,5 +1700,38 @@ function updateMouseTracking(e) {
   color: #0b0f19 !important;
   box-shadow: 0 0 18px rgba(68, 214, 44, 0.6) !important;
   transform: translateY(-1px) !important;
+}
+
+/* ABSOLUTE OVERFLOW & Z-INDEX FIX FOR CATEGORY DROPDOWN MENU */
+.search-filter-container,
+.search-filter-container.tracking-light-box,
+.search-filter-container.card,
+.search-filter-container .light-content,
+.search-filter-container .filters-content-inner,
+section#kampanyalar {
+  overflow: visible !important;
+  z-index: 100 !important;
+}
+
+.custom-category-dropdown {
+  position: relative !important;
+  z-index: 99999 !important;
+}
+
+.custom-dropdown-menu {
+  position: absolute !important;
+  top: calc(100% + 6px) !important;
+  left: 0 !important;
+  width: 100% !important;
+  min-width: 230px !important;
+  max-height: 340px !important;
+  overflow-y: auto !important;
+  background: #0f172a !important;
+  border: 1.5px solid var(--color-volt) !important;
+  border-radius: var(--radius-sm) !important;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.95), 0 0 20px rgba(68, 214, 44, 0.35) !important;
+  z-index: 999999 !important;
+  padding: 6px !important;
+  box-sizing: border-box !important;
 }
 </style>

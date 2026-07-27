@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <!-- Gamepad Main Body -->
+  <path d="M 130 150 L 382 150 C 430 150, 470 200, 450 280 L 410 400 C 395 450, 340 430, 310 370 L 285 320 C 270 295, 242 295, 227 320 L 202 370 C 172 430, 117 450, 102 400 L 62 280 C 42 200, 82 150, 130 150 Z" fill="#1E293B" stroke="#38BDF8" stroke-width="12" stroke-linejoin="round"/>
+  <!-- D-PAD (Left Side) -->
+  <rect x="125" y="210" width="30" height="80" rx="6" ry="6" fill="#334155"/>
+  <rect x="100" y="235" width="80" height="30" rx="6" ry="6" fill="#334155"/>
+  <!-- D-PAD Arrows -->
+  <polygon points="140,215 132,228 148,228" fill="#38BDF8"/>
+  <polygon points="140,285 132,272 148,272" fill="#38BDF8"/>
+  <polygon points="105,250 118,242 118,258" fill="#38BDF8"/>
+  <polygon points="175,250 162,242 162,258" fill="#38BDF8"/>
+  <!-- Action Buttons (Right Side) -->
+  <!-- Y / Triangle Button (Top) -->
+  <circle cx="370" cy="205" r="16" fill="#FACC15"/>
+  <!-- X / Square Button (Left) -->
+  <circle cx="330" cy="245" r="16" fill="#38BDF8"/>
+  <!-- B / Circle Button (Right) -->
+  <circle cx="410" cy="245" r="16" fill="#EF4444"/>
+  <!-- A / Cross Button (Bottom) -->
+  <circle cx="370" cy="285" r="16" fill="#44D62C"/>
+  <!-- Thumbsticks -->
+  <circle cx="195" cy="310" r="32" fill="#0F172A" stroke="#475569" stroke-width="6"/>
+  <circle cx="195" cy="310" r="18" fill="#38BDF8"/>
+  <circle cx="317" cy="310" r="32" fill="#0F172A" stroke="#475569" stroke-width="6"/>
+  <circle cx="317" cy="310" r="18" fill="#38BDF8"/>
+  <!-- Center Buttons -->
+  <rect x="220" y="225" width="28" height="12" rx="6" ry="6" fill="#64748B"/>
+  <rect x="264" y="225" width="28" height="12" rx="6" ry="6" fill="#64748B"/>
+  <!-- Center Home Light Bar -->
+  <path d="M 236 185 L 276 185" stroke="#44D62C" stroke-width="8" stroke-linecap="round"/>
+</svg>

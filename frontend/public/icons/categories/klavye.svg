@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <!-- Cable Loop -->
+  <path d="M 256 120 L 256 50 C 256 30, 320 30, 340 60 L 360 80" fill="none" stroke="#64748B" stroke-width="10" stroke-linecap="round"/>
+  <!-- Keyboard Main Frame -->
+  <rect x="30" y="120" width="452" height="280" rx="24" ry="24" fill="#1E293B" stroke="#38BDF8" stroke-width="12"/>
+  <!-- Inner Key Plate -->
+  <rect x="48" y="138" width="416" height="244" rx="14" ry="14" fill="#0F172A"/>
+  <!-- Row 1: Function Keys -->
+  <g fill="#334155" stroke="#38BDF8" stroke-width="2" rx="4">
+    <rect x="65" y="155" width="40" height="35" rx="6"/>
+    <rect x="115" y="155" width="40" height="35" rx="6"/>
+    <rect x="165" y="155" width="40" height="35" rx="6"/>
+    <rect x="215" y="155" width="40" height="35" rx="6"/>
+    <rect x="265" y="155" width="40" height="35" rx="6"/>
+    <rect x="315" y="155" width="40" height="35" rx="6"/>
+    <rect x="365" y="155" width="40" height="35" rx="6"/>
+    <rect x="415" y="155" width="35" height="35" rx="6" fill="#EF4444"/>
+  </g>
+  <!-- Row 2: QWERTY -->
+  <g fill="#334155" stroke="#475569" stroke-width="2">
+    <rect x="65" y="200" width="50" height="35" rx="6"/>
+    <rect x="125" y="200" width="40" height="35" rx="6"/>
+    <rect x="175" y="200" width="40" height="35" rx="6"/>
+    <rect x="225" y="200" width="40" height="35" rx="6"/>
+    <rect x="275" y="200" width="40" height="35" rx="6"/>
+    <rect x="325" y="200" width="40" height="35" rx="6"/>
+    <rect x="375" y="200" width="75" height="35" rx="6" fill="#38BDF8"/>
+  </g>
+  <!-- Row 3: ASDF WASD highlight -->
+  <g fill="#334155" stroke="#475569" stroke-width="2">
+    <rect x="65" y="245" width="60" height="35" rx="6"/>
+    <rect x="135" y="245" width="40" height="35" rx="6" fill="#44D62C"/>
+    <rect x="185" y="245" width="40" height="35" rx="6" fill="#44D62C"/>
+    <rect x="235" y="245" width="40" height="35" rx="6" fill="#44D62C"/>
+    <rect x="285" y="245" width="40" height="35" rx="6"/>
+    <rect x="335" y="245" width="40" height="35" rx="6"/>
+    <rect x="385" y="245" width="65" height="35" rx="6" fill="#FACC15"/>
+  </g>
+  <!-- Row 4: Spacebar & Modifiers -->
+  <g fill="#334155" stroke="#475569" stroke-width="2">
+    <rect x="65" y="290" width="60" height="40" rx="6"/>
+    <rect x="135" y="290" width="45" height="40" rx="6"/>
+    <rect x="190" y="290" width="160" height="40" rx="6" fill="#38BDF8"/>
+    <rect x="360" y="290" width="45" height="40" rx="6"/>
+    <rect x="415" y="290" width="35" height="40" rx="6"/>
+  </g>
+  <!-- WASD W Key Top -->
+  <rect x="185" y="200" width="40" height="35" rx="6" fill="#44D62C"/>
+</svg>

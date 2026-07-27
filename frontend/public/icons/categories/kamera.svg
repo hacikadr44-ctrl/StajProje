@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <!-- Top Flash Bump -->
+  <path d="M 170 140 L 210 90 L 302 90 L 342 140 Z" fill="#334155" stroke="#1E293B" stroke-width="8"/>
+  <!-- Red Recording Dot -->
+  <circle cx="120" cy="115" r="8" fill="#EF4444"/>
+  <!-- Shutter Button -->
+  <rect x="135" y="110" width="30" height="15" rx="4" ry="4" fill="#38BDF8"/>
+  <!-- Main Camera Body -->
+  <rect x="50" y="140" width="412" height="270" rx="36" ry="36" fill="#1E293B" stroke="#38BDF8" stroke-width="12"/>
+  <!-- Grip Rubber Accent -->
+  <rect x="70" y="160" width="50" height="230" rx="16" ry="16" fill="#0F172A"/>
+  <!-- Outer Lens Barrel Ring -->
+  <circle cx="280" cy="275" r="110" fill="#334155" stroke="#38BDF8" stroke-width="10"/>
+  <!-- Middle Lens Ring -->
+  <circle cx="280" cy="275" r="85" fill="#0F172A" stroke="#475569" stroke-width="6"/>
+  <!-- Inner Glass Lens -->
+  <circle cx="280" cy="275" r="60" fill="#0284C7"/>
+  <!-- Aperture Center -->
+  <circle cx="280" cy="275" r="30" fill="#38BDF8"/>
+  <!-- Glass Reflection Flare -->
+  <path d="M 235 230 A 60 60 0 0 1 315 230 C 290 250, 260 250, 235 230 Z" fill="#FFFFFF" opacity="0.4"/>
+</svg>

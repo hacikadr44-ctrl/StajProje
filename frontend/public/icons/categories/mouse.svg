@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <!-- Outer Body Ergonomic Shape -->
+  <path d="M 256 50 C 170 50, 140 160, 140 300 C 140 420, 180 470, 256 470 C 332 470, 372 420, 372 300 C 372 160, 342 50, 256 50 Z" fill="#1E293B" stroke="#38BDF8" stroke-width="12"/>
+  <!-- Left / Right Click Separator Gap -->
+  <line x1="256" y1="55" x2="256" y2="190" stroke="#0F172A" stroke-width="10"/>
+  <!-- Scroll Wheel Slot -->
+  <rect x="240" y="100" width="32" height="70" rx="16" ry="16" fill="#0F172A" stroke="#38BDF8" stroke-width="4"/>
+  <!-- Scroll Wheel Roller -->
+  <rect x="248" y="112" width="16" height="46" rx="8" ry="8" fill="#44D62C"/>
+  <!-- DPI Button -->
+  <rect x="246" y="195" width="20" height="30" rx="6" ry="6" fill="#FACC15"/>
+  <!-- RGB Light Strip Left -->
+  <path d="M 165 170 C 150 250, 160 380, 195 440" fill="none" stroke="#38BDF8" stroke-width="10" stroke-linecap="round"/>
+  <!-- RGB Light Strip Right -->
+  <path d="M 347 170 C 362 250, 352 380, 317 440" fill="none" stroke="#38BDF8" stroke-width="10" stroke-linecap="round"/>
+  <!-- Palm Logo Light -->
+  <polygon points="256,330 276,365 236,365" fill="#44D62C"/>
+</svg>

@@ -124,23 +124,9 @@ function updateMouseTracking(e) {
 }
 
 /* Dönerek Kenarları Takip Eden Lazer Işık */
-.tracking-light-card .light-beam {
-  position: absolute !important;
-  top: -80% !important;
-  left: -80% !important;
-  width: 260% !important;
-  height: 260% !important;
-  background: conic-gradient(
-    transparent 0deg,
-    transparent 260deg,
-    rgba(68, 214, 44, 0.3) 290deg,
-    #44d62c 325deg,
-    #00ffff 348deg,
-    #44d62c 360deg
-  ) !important;
-  animation: spinCardTrackingBeam 3.5s linear infinite !important;
-  z-index: 0 !important;
-  filter: drop-shadow(0 0 10px rgba(68, 214, 44, 0.9)) !important;
+.tracking-light-card .light-beam,
+.light-beam {
+  display: none !important;
 }
 
 /* Fareyi Takip Eden Işık Spot Işığı */

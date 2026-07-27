@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <!-- Speaker Body Outer -->
+  <rect x="130" y="60" width="252" height="392" rx="48" ry="48" fill="#1E293B" stroke="#38BDF8" stroke-width="12"/>
+  <!-- Front Mesh Panel -->
+  <rect x="150" y="80" width="212" height="352" rx="36" ry="36" fill="#0F172A"/>
+  <!-- Top Tweeter Ring -->
+  <circle cx="256" cy="160" r="50" fill="#0EA5E9" stroke="#1E293B" stroke-width="8"/>
+  <!-- Top Tweeter Cone -->
+  <circle cx="256" cy="160" r="22" fill="#38BDF8"/>
+  <circle cx="256" cy="160" r="8" fill="#FFFFFF"/>
+  <!-- Subwoofer Ring -->
+  <circle cx="256" cy="310" r="80" fill="#44D62C" stroke="#1E293B" stroke-width="10"/>
+  <!-- Subwoofer Cone -->
+  <circle cx="256" cy="310" r="45" fill="#22C55E"/>
+  <circle cx="256" cy="310" r="16" fill="#FFFFFF"/>
+  <!-- Sound Waves (Left & Right) -->
+  <path d="M 90 200 A 70 70 0 0 0 90 310" fill="none" stroke="#38BDF8" stroke-width="12" stroke-linecap="round"/>
+  <path d="M 60 170 A 110 110 0 0 0 60 340" fill="none" stroke="#38BDF8" stroke-width="12" stroke-linecap="round" opacity="0.6"/>
+  <path d="M 422 200 A 70 70 0 0 1 422 310" fill="none" stroke="#38BDF8" stroke-width="12" stroke-linecap="round"/>
+  <path d="M 452 170 A 110 110 0 0 1 452 340" fill="none" stroke="#38BDF8" stroke-width="12" stroke-linecap="round" opacity="0.6"/>
+</svg>
