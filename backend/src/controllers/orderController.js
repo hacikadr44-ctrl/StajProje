@@ -5,7 +5,7 @@ const sequelize = require('../config/db');
 async function createOrder(req, res) {
   const t = await sequelize.transaction();
   try {
-    const { city, district, address } = req.body;
+    const { city, district, address, couponCode } = req.body;
     if (!city || !district || !address) {
       await t.rollback();
       return res.status(400).json({ message: 'İl, ilçe ve açık adres zorunludur.' });
@@ -26,10 +26,33 @@ async function createOrder(req, res) {
       }
     }
 
-    const totalPrice = cartItems.reduce(
+    let totalPrice = cartItems.reduce(
       (sum, item) => sum + Number(item.Product.price) * item.quantity,
       0
     );
+
+    // Kupon İndirimi Uygula
+    if (couponCode) {
+      const code = couponCode.trim().toUpperCase();
+      let discount = 0;
+      if (code === 'TEKNO5') {
+        discount = (totalPrice * 5) / 100;
+      } else if (code === 'TEKNO8') {
+        discount = (totalPrice * 8) / 100;
+      } else if (code === 'TEKNO10' || code === 'BULTEN10') {
+        discount = (totalPrice * 10) / 100;
+      } else if (code === 'TEKNO15') {
+        discount = (totalPrice * 15) / 100;
+      } else if (code === 'SURPRIZ') {
+        discount = Math.min(250, totalPrice);
+      }
+      totalPrice -= discount;
+    }
+
+    // Kargo bedeli ekle (750 TL altı ise ve BEDAVAKARGO kuponu girilmemişse)
+    if (totalPrice < 750 && couponCode?.trim().toUpperCase() !== 'BEDAVAKARGO') {
+      totalPrice += 29.90;
+    }
 
     const order = await orderRepository.create(
       { userId: req.user.id, totalPrice, city, district, address, status: 'beklemede' },

@@ -1,11 +1,14 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useAuthStore } from '../stores/auth'
 import api from '../api/axios'
 import ProductCard from '../components/ProductCard.vue'
+import { formatCurrency } from '../utils/format'
 
 const route = useRoute()
 const router = useRouter()
+const authStore = useAuthStore()
 
 // ---- VERİ & FİLTRELEME DEĞİŞKENLERİ ----
 const products = ref([])
@@ -463,6 +466,67 @@ function pad(n) {
   return String(n).padStart(2, '0')
 }
 
+// ---- SON İNCELENEN ÜRÜNLER (RECENTLY VIEWED) ----
+const recentlyViewedProducts = ref([])
+const recentlyViewedScrollRef = ref(null)
+
+async function fetchRecentlyViewed() {
+  if (!authStore.isLoggedIn) {
+    recentlyViewedProducts.value = []
+    return
+  }
+  try {
+    const res = await api.get('/products/viewed')
+    recentlyViewedProducts.value = res.data
+  } catch (err) {
+    console.error('Son incelenen ürünler yüklenemedi:', err)
+  }
+}
+
+function scrollRecentlyViewed(dir) {
+  const el = recentlyViewedScrollRef.value
+  if (el) {
+    el.scrollBy({ left: dir * 280, behavior: 'smooth' })
+  }
+}
+
+
+
+// ---- DİNAMİK BLOG ÜRÜN EŞLEŞTİRMELERİ ----
+const blogProductRehber = computed(() => {
+  let prod = products.value.find(p => p.name.toLowerCase().includes('odyssey') || p.name.toLowerCase().includes('ultragear'))
+  if (!prod && products.value.length > 0) {
+    prod = products.value.find(p => {
+      const cat = categories.value.find(c => c.name === 'Monitör')
+      return cat && Number(p.categoryId) === Number(cat.id)
+    })
+  }
+  return prod || null
+})
+
+const blogProductDonanim = computed(() => {
+  let prod = products.value.find(p => p.name.toLowerCase().includes('rog strix') || p.name.toLowerCase().includes('raider') || p.name.toLowerCase().includes('nitro'))
+  if (!prod && products.value.length > 0) {
+    prod = products.value.find(p => {
+      const cat = categories.value.find(c => c.name === 'Laptop')
+      return cat && Number(p.categoryId) === Number(cat.id)
+    })
+  }
+  return prod || null
+})
+
+const blogProductEkipman = computed(() => {
+  let prod = products.value.find(p => p.name.toLowerCase().includes('apex pro') || p.name.toLowerCase().includes('mercury v60') || p.name.toLowerCase().includes('huntsman'))
+  if (!prod && products.value.length > 0) {
+    prod = products.value.find(p => {
+      const cat = categories.value.find(c => c.name === 'Klavye')
+      return cat && Number(p.categoryId) === Number(cat.id)
+    })
+  }
+  return prod || null
+})
+
+
 onMounted(() => {
   syncFromRoute()
   fetchCategories()
@@ -471,6 +535,7 @@ onMounted(() => {
   fetchProducts()
   startHeroRotation()
   tickCountdown()
+  fetchRecentlyViewed() // Son incelenenleri çek
   countdownTimer = setInterval(tickCountdown, 1000)
   document.addEventListener('click', handleGlobalClick)
 })
@@ -498,6 +563,77 @@ function updateMouseTracking(e) {
   const y = e.clientY - rect.top
   el.style.setProperty('--mouse-x', `${x}px`)
   el.style.setProperty('--mouse-y', `${y}px`)
+}
+
+// ---- ŞANS ÇARKLI İNDİRİM SİSTEMİ ----
+const showWheelModal = ref(false)
+const isSpinning = ref(false)
+const wheelRotation = ref(0)
+const hasSpun = ref(false)
+const wonItem = ref(null)
+const couponCopied = ref(false)
+
+const wheelItems = [
+  { label: '%10 İndirim', code: 'TEKNO10', color: '#ff7675' },
+  { label: 'Kargo Bedava', code: 'BEDAVAKARGO', color: '#74b9ff' },
+  { label: '%5 İndirim', code: 'TEKNO5', color: '#55efc4' },
+  { label: 'Tekrar Dene', code: '', color: '#ffeaa7' },
+  { label: '%15 İndirim', code: 'TEKNO15', color: '#a29bfe' },
+  { label: 'Sürpriz Hediye', code: 'SURPRIZ', color: '#fd79a8' },
+  { label: '%8 İndirim', code: 'TEKNO8', color: '#00cec9' },
+  { label: 'Pas', code: '', color: '#fdcb6e' }
+]
+
+onMounted(() => {
+  // Kontrol et: Daha önce çevrilmiş mi?
+  const savedCode = localStorage.getItem('wonCouponCode')
+  const savedLabel = localStorage.getItem('wonCouponLabel')
+  if (savedCode) {
+    hasSpun.value = true
+    wonItem.value = { code: savedCode, label: savedLabel }
+  }
+})
+
+function openWheelModal() {
+  showWheelModal.value = true
+}
+
+function closeWheelModal() {
+  if (isSpinning.value) return // Dönerken kapattırma
+  showWheelModal.value = false
+}
+
+function spinWheel() {
+  if (isSpinning.value || hasSpun.value) return
+  isSpinning.value = true
+  couponCopied.value = false
+
+  // Biased winner index: Pas (7) veya Tekrar Dene (3) gelmesin, hediye gelsin
+  const prizeIndices = [0, 1, 2, 4, 5, 6]
+  const winnerIdx = prizeIndices[Math.floor(Math.random() * prizeIndices.length)]
+  wonItem.value = wheelItems[winnerIdx]
+
+  // Dönüş hesaplama: 5 tam tur (1800 derece) + ilgili dilimin açısı
+  const targetRotation = 360 * 5 + (360 - (winnerIdx * 45 + 22.5))
+  wheelRotation.value = targetRotation
+
+  setTimeout(() => {
+    isSpinning.value = false
+    hasSpun.value = true
+    
+    // Save to LocalStorage to prevent multiple entries
+    localStorage.setItem('wonCouponCode', wonItem.value.code)
+    localStorage.setItem('wonCouponLabel', wonItem.value.label)
+  }, 4000)
+}
+
+function copyCoupon() {
+  if (!wonItem.value?.code) return
+  navigator.clipboard.writeText(wonItem.value.code)
+  couponCopied.value = true
+  setTimeout(() => {
+    couponCopied.value = false
+  }, 2000)
 }
 </script>
 
@@ -584,9 +720,9 @@ function updateMouseTracking(e) {
           <span class="promo-eyebrow deal-eyebrow">HAFTANIN FIRSATI</span>
           <p class="deal-name">{{ dealProduct.name }}</p>
           <p class="deal-price">
-            {{ Number(dealProduct.price).toFixed(2) }} TL
+            {{ formatCurrency(dealProduct.price) }} TL
             <span v-if="dealProduct.originalPrice" class="deal-old">
-              {{ Number(dealProduct.originalPrice).toFixed(2) }} TL
+              {{ formatCurrency(dealProduct.originalPrice) }} TL
             </span>
           </p>
         </div>
@@ -639,11 +775,291 @@ function updateMouseTracking(e) {
               </div>
               <div class="bestseller-info">
                 <p class="bs-name">{{ p.name }}</p>
-                <p class="bs-price price-mono">{{ Number(p.price).toFixed(2) }} TL</p>
+                <p class="bs-price price-mono">{{ formatCurrency(p.price) }} TL</p>
               </div>
             </RouterLink>
           </div>
         </aside>
+      </div>
+    </section>
+
+    <!-- ============ SON İNCELENEN ÜRÜNLER (Recently Viewed) ============ -->
+    <section v-if="authStore.isLoggedIn && recentlyViewedProducts.length > 0" class="section-block recently-viewed-block">
+      <div class="section-heading tracking-light-heading tracking-light-box" @mousemove="updateMouseTracking">
+        <div class="light-beam"></div>
+        <div class="mouse-glow"></div>
+        <div class="light-content heading-content-inner recently-viewed-header">
+          <div class="heading-title-group">
+            <span class="tracking-pulse-dot" style="background: var(--color-success);"></span>
+            <h2>Son İncelediğiniz Ürünler</h2>
+          </div>
+          <div class="rv-carousel-nav" v-if="recentlyViewedProducts.length > 4">
+            <button class="rv-carousel-btn" @click="scrollRecentlyViewed(-1)">‹</button>
+            <button class="rv-carousel-btn" @click="scrollRecentlyViewed(1)">›</button>
+          </div>
+        </div>
+      </div>
+      <div class="recently-viewed-carousel" ref="recentlyViewedScrollRef">
+        <ProductCard 
+          v-for="product in recentlyViewedProducts" 
+          :key="'r-' + product.id" 
+          :product="product" 
+          class="recently-viewed-card" 
+        />
+      </div>
+    </section>
+
+
+
+    <!-- ============ POPÜLER MARKALAR (Brands Slider) ============ -->
+    <section class="section-block brands-section">
+      <div class="brands-wrapper tracking-light-box" @mousemove="updateMouseTracking">
+        <div class="light-beam"></div>
+        <div class="mouse-glow"></div>
+        <div class="light-content brands-container">
+          <div class="brands-title">
+            <span>YETKİLİ DİSTRİBÜTÖRÜ OLDUĞUMUZ MARKALAR</span>
+          </div>
+          <div class="brands-slider">
+            <div class="brands-track">
+              <!-- Set 1 -->
+              <!-- Apple -->
+              <div class="brand-item" title="Apple">
+                <svg viewBox="0 0 24 24" class="brand-logo-svg" xmlns="http://www.w3.org/2000/svg">
+                  <path fill="currentColor" d="M18.71 19.5C17.88 20.74 17 21.95 15.66 21.97C14.32 22 13.89 21.18 12.37 21.18C10.84 21.18 10.37 21.95 9.09997 22C7.78997 22.05 6.79997 20.68 5.95997 19.47C4.24997 17 2.93997 12.45 4.69997 9.39C5.56997 7.87 7.12997 6.91 8.81997 6.88C10.1 6.86 11.32 7.75 12.11 7.75C12.89 7.75 14.37 6.68 15.92 6.84C16.57 6.87 18.39 7.1 19.56 8.82C19.47 8.88 17.39 10.1 17.41 12.63C17.44 15.65 20.06 16.66 20.09 16.67C20.06 16.74 19.67 18.11 18.71 19.5ZM13 3.5C13.73 2.67 14.94 2.04 15.94 2C16.07 3.17 15.6 4.35 14.9 5.19C14.21 6.04 13.07 6.7 11.95 6.61C11.8 5.46 12.36 4.26 13 3.5Z"/>
+                </svg>
+                <span class="brand-name">Apple</span>
+              </div>
+              <!-- Samsung -->
+              <div class="brand-item" title="Samsung">
+                <svg viewBox="0 0 512 512" class="brand-logo-svg sq-logo" xmlns="http://www.w3.org/2000/svg">
+                  <rect width="512" height="512" rx="15%" fill="#034ea2"/>
+                  <path fill="#ffffff" d="m72,224c-16 0-23 5-22 20 3 12 25 19 27 23l0 4c0 2-1 4-5 4-4 0-6-3-6-5l0-5-16 0c-1 16 11 21 22 21 14 0 21-4 21-17 1-19-24-20-26-28 0 -1 0-1 0-3 0-1 1-4 5-4 4 0 5 3 5 5l0 4 15 0 0-4c0-13-12-15-20-15zm353,15 0,33c1,21 39,17 39,0 l 0-20-17 0 0 8 5 0 0 11c-1 5-13 5-13 0 0-11 0-21 0-31 0-5 11-5 12 0l0 5 13 0 0-6c-1-20-39-17-39 0zm-160-15c-16 0-23 5-22 20 3 12 25 19 27 23l0 4c0 2-1 4-5 4-4 0-6-3-6-5l0-5-16 0c-1 16 11 21 22 21 14 0 21-4 21-17 1-19-24-20-26-28 0 -1 0-1 0-3 0-1 1-4 5-4 4 0 5 3 5 5l0 4 15 0 0-4c0-13-12-15-20-15zm-100 1-1 59 15 0 0-53 11 53 15 0 9-53 0 53 15 0-1-59-24 0-7 45-7-45-24 0zm135 0 0 43c0 1 0 3 0 2 1 11 9 15 21 15 11 0 20-4 20-15 0 0 0-3 0,-4l0-41-15 0 0 43c0 1 0 1 0 3 0 1-1 4-7 4-4 0-5-3-5-4 0 0 0-1 0-3l0-43zm-185 0-11 59 16 0 8-53 8 53 16 0-11-59zm243 0 0 59 15 0 0-48 15 48 21 0 0-59-15 0 0 47-13-47z"/>
+                </svg>
+                <span class="brand-name">Samsung</span>
+              </div>
+              <!-- Sony -->
+              <div class="brand-item" title="Sony">
+                <svg viewBox="0 0 192.744 192.744" class="brand-logo-svg wide">
+                  <g fill-rule="evenodd" clip-rule="evenodd" fill="currentColor">
+                    <path d="M187.035 106.442a2.852 2.852 0 1 0 0 5.703 2.847 2.847 0 0 0 2.844-2.858 2.844 2.844 0 0 0-2.844-2.845zm0 5.36a2.505 2.505 0 0 1-2.508-2.515 2.502 2.502 0 0 1 2.508-2.501 2.5 2.5 0 0 1 2.5 2.501 2.503 2.503 0 0 1-2.5 2.515z"/>
+                    <path d="M188.498 108.54c0-.269-.119-.552-.357-.687-.24-.142-.508-.156-.777-.156h-1.389v3.187h.389v-1.47h.717l.91 1.47h.463l-.963-1.47c.568-.016 1.007-.247 1.007-.874zm-1.537.567h-.598v-1.127h.91c.396 0 .83.06.83.553.001.649-.695.574-1.142.574zM170.32 93.132l5.83-6.225c.338-.457.506-.777.506-1.051 0-.457-.393-.64-1.629-.64h-1.471v-3.93h15.922v3.93h-2.092c-2.416 0-2.865.365-6.236 4.615l-9.223 9.96v6.078c0 1.555.785 2.102 3.033 2.102h3.482v3.792h-22.301v-3.792h3.482c2.246 0 3.033-.547 3.033-2.102v-6.078l-10.863-12.017c-1.795-2.101-1.547-2.558-6.545-2.558v-3.93h20.168v3.93h-1.436c-1.461 0-2.08.274-2.08.822 0 .458.449.823.73 1.188l5.496 5.99c.653.679 1.45.767 2.194-.084zM35.003 81.285h4.865v10.966h-4.493c-.398-2.192-1.77-3.045-3.021-4.195-2.257-2.074-7.145-3.801-11.256-3.801-5.306 0-9.784 1.646-9.784 4.066 0 6.718 30.345 1.372 30.345 14.074 0 6.625-6.5 10.326-18.173 10.326-4.041 0-10.156-1.254-13.764-3.17-1.131-.653-1.611.618-1.823 2.211H2.911V100.43h4.512c.995 2.879 2.366 3.472 3.627 4.615 2.188 2.011 7.396 3.474 12.172 3.427 7.201-.071 9.677-1.645 9.677-3.93 0-2.284-2.449-2.833-10.34-4.066l-6.7-1.097c-7.561-1.143-13.066-2.833-13.066-8.864 0-6.26 6.964-10.19 17.975-10.19 4.64 0 8.522.62 12.248 2.726 1.032.671 2 .751 1.987-1.766zM129.947 99.645l.096-12.188c0-1.599-.832-2.147-3.209-2.147h-2.793v-3.792h17.77v3.792h-2.316c-2.379 0-3.211.549-3.211 2.147v24.537l-6.955-.055-22.524-21.329v15.49c0 1.554.832 2.147 3.209 2.147h3.092v3.747H94.651v-3.747h3.058c2.377 0 3.209-.594 3.209-2.147V87.457c0-1.599-.832-2.147-3.209-2.147h-3.058v-3.792h15.956l19.34 18.127zM70.424 80.095c-14.162 0-23.027 6.261-23.027 16.312 0 9.871 8.742 16.084 22.595 16.084 14.714 0 23.273-6.122 23.273-16.586.001-9.412-9.235-15.81-22.841-15.81zm-.322 28.422c-7.839 0-12.345-4.524-12.345-12.338 0-7.63 4.702-12.154 12.737-12.154 7.708 0 12.214 4.616 12.214 12.475 0 7.676-4.572 12.017-12.606 12.017z"/>
+                  </g>
+                </svg>
+                <span class="brand-name">Sony</span>
+              </div>
+              <!-- LG -->
+              <div class="brand-item" title="LG Electronics">
+                <svg viewBox="0 0 192.756 192.756" class="brand-logo-svg wide">
+                  <path d="M52.979 135.844c21.796 0 39.467-17.67 39.467-39.466s-17.67-39.466-39.467-39.466-39.467 17.67-39.467 39.466 17.67 39.466 39.467 39.466z" fill="#a70b52"/>
+                  <path fill="#ffffff" d="M62.589 110.267h-8.173v-30.89h-3.031v33.938h3.031v-.02h8.173z"/>
+                  <path d="M82.989 97.642H62.637v-3.031H85.97c.031.586.046 1.173.046 1.767 0 18.247-14.792 33.038-33.038 33.038S19.94 114.625 19.94 96.378 34.732 63.34 52.979 63.34c.481 0 .961.01 1.438.031l-.004 3.008a31.023 31.023 0 0 0-1.434-.033c-16.586 0-30.033 13.446-30.033 30.032 0 16.587 13.446 30.032 30.033 30.032 16.134 0 29.296-12.722 30.002-28.683l.008-.085z" fill="#ffffff"/>
+                  <path d="M40.655 88.521a4.642 4.642 0 1 0 0-9.285 4.642 4.642 0 0 0 0 9.285z" fill="#ffffff"/>
+                  <path fill="#808183" d="M112.043 115.75h28.201v-8.517h-17.847V76.735h-10.354zM174.317 79.482c-3.233-2.505-7.396-3.775-12.364-3.775-5.899 0-10.828 1.812-14.255 5.236-3.577 3.579-5.471 8.851-5.471 15.246 0 6.832 2.002 12.597 5.637 16.229 2.854 2.853 6.656 4.358 11.007 4.358 9.551 0 11.748-5.725 11.748-5.725V115.748h8.625V93.714h-17.169v6.895H169.977s.076 8.681-8.08 8.681c-2.072 0-3.918-.752-5.338-2.172-2.213-2.211-3.383-5.937-3.383-10.767 0-8 3.18-12.776 8.504-12.776 3.326 0 5.826 2.042 6.467 5.137h10.984c-.569-4.497-1.803-6.841-4.814-9.23z"/>
+                </svg>
+                <span class="brand-name">LG</span>
+              </div>
+              <!-- MSI -->
+              <div class="brand-item" title="MSI">
+                <svg viewBox="0 0 1886.832 440.865" class="brand-logo-svg wide" xmlns="http://www.w3.org/2000/svg">
+                  <g fill="#005DAA">
+                    <path d="M1603.571 440.835l120.68-332.82s-90.207 0-180.424 18.104l-114.084 314.715h173.828v.001zm-20.59-422.726l-23.162 63.932c90.762-18.13 180.41-18.13 180.41-18.13L1763.397 0c.008.011-90.194.011-180.416 18.109zM931.614 422.719c61.294 11.871 124.617 18.115 189.4 18.115h.021c102.809 0 145.068-10.227 198.406-37.449 45.443-23.244 75.313-47.902 88.152-90.371 11.004-36.393-3.057-70.74-35.672-92.595-32.629-21.85-64.232-32.179-101.754-52.88-32.83-18.093-50.725-31.731-48.535-50.709 4.605-39.815 47.168-52.92 105.818-52.92 57.158 0 113.082 5.175 167.342 15.065l22.088-60.867C1455.586 6.252 1392.235 0 1327.451 0c-102.814 0-145.055 10.226-198.4 37.465-45.457 23.235-75.324 47.893-88.166 90.385-10.996 36.386 3.057 70.712 35.701 92.563 32.602 21.847 64.189 32.189 101.75 52.919 32.807 18.086 50.73 31.713 48.498 50.689-4.613 39.828-47.17 52.877-105.797 52.877h-.029c-57.123 0-113.055-5.158-167.334-15.068l-22.06 60.889zM865.47 440.835l111.885-308.6c9.096-25.018 9.684-70.1-15.447-94.741C936.757 12.759 906.805.01 851.448.01c-55.353-.018-100.295 14.517-136.407 28.668-19.416 7.561-48.241 22.348-80.851 42.094-3.15-12.511-8.896-24.242-18.086-33.271C590.937 12.767 560.988.018 505.643.018 450.269.003 405.365 14.535 369.229 28.686c-19.407 7.56-48.24 22.347-80.85 42.093-3.145-12.511-8.896-24.241-18.086-33.271C245.133 12.775 215.19.026 159.824.026L-.001 440.864h173.85l79.924-220.445c14.486-39.979 53.912-78.051 75.555-94.774 27.532-21.263 150.738-55.112 117.175 37.469L345.818 440.835h173.857l79.917-220.46c14.501-39.965 53.919-78.014 75.546-94.729 27.532-21.263 150.739-55.112 117.168 37.469l-100.684 277.72H865.47z"/>
+                    <g>
+                      <path d="M1845.68 6.449h-10.41v26.838h-8.58V6.449h-10.4/01h29.385v6.439h.005zM1886.832 33.288h-8.566v-22.28l-6.156 14.45h-5.891l-6.148-14.45v22.28h-8.064V.011h9.91l7.477 16.684L1876.83.011h10.006v33.277h-.004z"/>
+                    </g>
+                  </g>
+                </svg>
+                <span class="brand-name">MSI</span>
+              </div>
+              <!-- Asus -->
+              <div class="brand-item" title="ASUS">
+                <svg viewBox="0 0 24 24" class="brand-logo-svg wide">
+                  <path fill="currentColor" d="M23.904 10.788V9.522h-4.656c-.972 0-1.41.6-1.482 1.182v.018-1.2h-1.368v1.266h1.362zm-6.144.456l-1.368-.078v1.458c0 .456-.228.594-1.02.594H14.28c-.654 0-.93-.186-.93-.594v-1.596l-1.386-.102v1.812h-.03c-.078-.528-.276-1.14-1.596-1.23L6 11.22c0 .666.474 1.062 1.218 1.14l3.024.306c.24.018.414.09.414.288 0 .216-.18.24-.456.24H5.946V11.22l-1.386-.09v3.348h5.646c1.26 0 1.662-.654 1.722-1.2h.03c.156.864.912 1.2 2.19 1.2h1.41c1.494 0 2.202-.456 2.202-1.524zm4.398.258l-4.338-.258c0 .666.438 1.11 1.182 1.17l3.09.24c.24.018.384.078.384.276 0 .186-.168.258-.516.258h-4.212v1.29h4.302c1.356 0 1.95-.474 1.95-1.554 0-.972-.534-1.338-1.842-1.422zm-10.194-1.98h1.386v1.266h-1.386zM3.798 11.07l-1.506-.15L0 14.478h1.686zm7.914-1.548h-4.23c-.984 0-1.416.612-1.518 1.2v-1.2H3.618c-.33 0-.486.102-.642.33l-.648.936h9.384Z"/>
+                </svg>
+                <span class="brand-name">ASUS</span>
+              </div>
+              <!-- Xiaomi -->
+              <div class="brand-item" title="Xiaomi">
+                <svg viewBox="0 0 1024 1024" class="brand-logo-svg">
+                  <circle cx="512" cy="512" r="512" style="fill:#ff6900"/>
+                  <path d="M512 256c-85 0-154.54 5.44-202.82 53.67S256 427.37 256 512.26s4.91 154.35 53.21 202.6S427 768 512 768s154.52-4.91 202.79-53.14S768 597.12 768 512.26s-5-154.52-53.38-202.75S596.86 256 512 256zM360.66 414h120c31.36 0 64.15 1.45 80.3 17.64 15.91 15.91 17.64 47.64 17.71 78.42v96.85a3.2 3.2 0 0 1-3.27 3.09h-41.53a3.2 3.2 0 0 1-3.24-3.16v-98.5c0-17.19-1-34.86-9.9-43.75-7.64-7.68-21.89-9.41-36.69-9.77H408.7a3.2 3.2 0 0 0-3.22 3.14v148.93a3.2 3.2 0 0 1-3.24 3.16h-41.58a3.2 3.2 0 0 1-3.2-3.16V417.15a3.2 3.2 0 0 1 3.2-3.15zm258.79 0H661a3.2 3.2 0 0 1 3.2 3.2v189.7a3.2 3.2 0 0 1-3.2 3.1h-41.54a3.2 3.2 0 0 1-3.22-3.16V417.15a3.2 3.2 0 0 1 3.22-3.18zm-173.16 75.56h43.65a3.17 3.17 0 0 1 3.2 3.14v114.17a3.2 3.2 0 0 1-3.2 3.16h-43.65a3.2 3.2 0 0 1-3.24-3.16V492.69a3.2 3.2 0 0 1 3.24-3.13z" style="fill:#fff"/>
+                </svg>
+                <span class="brand-name">Xiaomi</span>
+              </div>
+              <!-- Logitech -->
+              <div class="brand-item" title="Logitech">
+                <svg viewBox="0 0 24 24" class="brand-logo-svg wide">
+                  <path fill="currentColor" d="M24 5.098a1.35 1.35 0 0 1-1.35 1.35 1.35 1.35 0 0 1-1.352-1.35 1.35 1.35 0 0 1 1.351-1.351A1.35 1.35 0 0 1 24 5.097zM16.549 18.31a2.289 2.289 0 0 1-2.322-2.322H12.2c0 2.449 1.9 4.264 4.306 4.264s4.348-1.857 4.348-4.264H18.87c-.043 1.351-1.056 2.322-2.322 2.322zm5.108-2.828h1.984V7.377h-1.984zM0 15.483h1.984V4H0v11.483zm7.135-8.359c-2.449 0-4.307 1.858-4.307 4.264a4.27 4.27 0 0 0 4.307 4.306c2.406 0 4.306-1.858 4.306-4.264S9.583 7.124 7.135 7.124zm0 6.628c-1.31 0-2.322-1.013-2.322-2.364a2.289 2.289 0 0 1 2.322-2.322 2.289 2.289 0 0 1 2.321 2.322c0 1.309-.97 2.364-2.321 2.364zm13.635-4.77V7.377h-2.828c-.464-.21-.929-.253-1.393-.253-2.449 0-4.348 1.858-4.348 4.306 0 2.449 1.9 4.264 4.306 4.264s4.306-1.858 4.306-4.264c0-.844-.254-1.604-.676-2.195zm-4.221 4.77c-1.309 0-2.322-1.013-2.322-2.364a2.289 2.289 0 0 1 2.322-2.322 2.289 2.289 0 0 1 2.322 2.322c0 1.309-1.056 2.364-2.322 2.364Z" />
+                </svg>
+                <span class="brand-name">Logitech</span>
+              </div>
+
+              <!-- Set 2 (Duplicated for infinite scroll marquee) -->
+              <!-- Apple -->
+              <div class="brand-item" title="Apple">
+                <svg viewBox="0 0 24 24" class="brand-logo-svg" xmlns="http://www.w3.org/2000/svg">
+                  <path fill="currentColor" d="M18.71 19.5C17.88 20.74 17 21.95 15.66 21.97C14.32 22 13.89 21.18 12.37 21.18C10.84 21.18 10.37 21.95 9.09997 22C7.78997 22.05 6.79997 20.68 5.95997 19.47C4.24997 17 2.93997 12.45 4.69997 9.39C5.56997 7.87 7.12997 6.91 8.81997 6.88C10.1 6.86 11.32 7.75 12.11 7.75C12.89 7.75 14.37 6.68 15.92 6.84C16.57 6.87 18.39 7.1 19.56 8.82C19.47 8.88 17.39 10.1 17.41 12.63C17.44 15.65 20.06 16.66 20.09 16.67C20.06 16.74 19.67 18.11 18.71 19.5ZM13 3.5C13.73 2.67 14.94 2.04 15.94 2C16.07 3.17 15.6 4.35 14.9 5.19C14.21 6.04 13.07 6.7 11.95 6.61C11.8 5.46 12.36 4.26 13 3.5Z"/>
+                </svg>
+                <span class="brand-name">Apple</span>
+              </div>
+              <!-- Samsung -->
+              <div class="brand-item" title="Samsung">
+                <svg viewBox="0 0 512 512" class="brand-logo-svg sq-logo" xmlns="http://www.w3.org/2000/svg">
+                  <rect width="512" height="512" rx="15%" fill="#034ea2"/>
+                  <path fill="#ffffff" d="m72,224c-16 0-23 5-22 20 3 12 25 19 27 23l0 4c0 2-1 4-5 4-4 0-6-3-6-5l0-5-16 0c-1 16 11 21 22 21 14 0 21-4 21-17 1-19-24-20-26-28 0 -1 0-1 0-3 0-1 1-4 5-4 4 0 5 3 5 5l0 4 15 0 0-4c0-13-12-15-20-15zm353,15 0,33c1,21 39,17 39,0 l 0-20-17 0 0 8 5 0 0 11c-1 5-13 5-13 0 0-11 0-21 0-31 0-5 11-5 12 0l0 5 13 0 0-6c-1-20-39-17-39 0zm-160-15c-16 0-23 5-22 20 3 12 25 19 27 23l0 4c0 2-1 4-5 4-4 0-6-3-6-5l0-5-16 0c-1 16 11 21 22 21 14 0 21-4 21-17 1-19-24-20-26-28 0 -1 0-1 0-3 0-1 1-4 5-4 4 0 5 3 5 5l0 4 15 0 0-4c0-13-12-15-20-15zm-100 1-1 59 15 0 0-53 11 53 15 0 9-53 0 53 15 0-1-59-24 0-7 45-7-45-24 0zm135 0 0 43c0 1 0 3 0 2 1 11 9 15 21 15 11 0 20-4 20-15 0 0 0-3 0,-4l0-41-15 0 0 43c0 1 0 1 0 3 0 1-1 4-7 4-4 0-5-3-5-4 0 0 0-1 0-3l0-43zm-185 0-11 59 16 0 8-53 8 53 16 0-11-59zm243 0 0 59 15 0 0-48 15 48 21 0 0-59-15 0 0 47-13-47z"/>
+                </svg>
+                <span class="brand-name">Samsung</span>
+              </div>
+              <!-- Sony -->
+              <div class="brand-item" title="Sony">
+                <svg viewBox="0 0 192.744 192.744" class="brand-logo-svg wide">
+                  <g fill-rule="evenodd" clip-rule="evenodd" fill="currentColor">
+                    <path d="M187.035 106.442a2.852 2.852 0 1 0 0 5.703 2.847 2.847 0 0 0 2.844-2.858 2.844 2.844 0 0 0-2.844-2.845zm0 5.36a2.505 2.505 0 0 1-2.508-2.515 2.502 2.502 0 0 1 2.508-2.501 2.5 2.5 0 0 1 2.5 2.501 2.503 2.503 0 0 1-2.5 2.515z"/>
+                    <path d="M188.498 108.54c0-.269-.119-.552-.357-.687-.24-.142-.508-.156-.777-.156h-1.389v3.187h.389v-1.47h.717l.91 1.47h.463l-.963-1.47c.568-.016 1.007-.247 1.007-.874zm-1.537.567h-.598v-1.127h.91c.396 0 .83.06.83.553.001.649-.695.574-1.142.574zM170.32 93.132l5.83-6.225c.338-.457.506-.777.506-1.051 0-.457-.393-.64-1.629-.64h-1.471v-3.93h15.922v3.93h-2.092c-2.416 0-2.865.365-6.236 4.615l-9.223 9.96v6.078c0 1.555.785 2.102 3.033 2.102h3.482v3.792h-22.301v-3.792h3.482c2.246 0 3.033-.547 3.033-2.102v-6.078l-10.863-12.017c-1.795-2.101-1.547-2.558-6.545-2.558v-3.93h20.168v3.93h-1.436c-1.461 0-2.08.274-2.08.822 0 .458.449.823.73 1.188l5.496 5.99c.653.679 1.45.767 2.194-.084zM35.003 81.285h4.865v10.966h-4.493c-.398-2.192-1.77-3.045-3.021-4.195-2.257-2.074-7.145-3.801-11.256-3.801-5.306 0-9.784 1.646-9.784 4.066 0 6.718 30.345 1.372 30.345 14.074 0 6.625-6.5 10.326-18.173 10.326-4.041 0-10.156-1.254-13.764-3.17-1.131-.653-1.611.618-1.823 2.211H2.911V100.43h4.512c.995 2.879 2.366 3.472 3.627 4.615 2.188 2.011 7.396 3.474 12.172 3.427 7.201-.071 9.677-1.645 9.677-3.93 0-2.284-2.449-2.833-10.34-4.066l-6.7-1.097c-7.561-1.143-13.066-2.833-13.066-8.864 0-6.26 6.964-10.19 17.975-10.19 4.64 0 8.522.62 12.248 2.726 1.032.671 2 .751 1.987-1.766zM129.947 99.645l.096-12.188c0-1.599-.832-2.147-3.209-2.147h-2.793v-3.792h17.77v3.792h-2.316c-2.379 0-3.211.549-3.211 2.147v24.537l-6.955-.055-22.524-21.329v15.49c0 1.554.832 2.147 3.209 2.147h3.092v3.747H94.651v-3.747h3.058c2.377 0 3.209-.594 3.209-2.147V87.457c0-1.599-.832-2.147-3.209-2.147h-3.058v-3.792h15.956l19.34 18.127zM70.424 80.095c-14.162 0-23.027 6.261-23.027 16.312 0 9.871 8.742 16.084 22.595 16.084 14.714 0 23.273-6.122 23.273-16.586.001-9.412-9.235-15.81-22.841-15.81zm-.322 28.422c-7.839 0-12.345-4.524-12.345-12.338 0-7.63 4.702-12.154 12.737-12.154 7.708 0 12.214 4.616 12.214 12.475 0 7.676-4.572 12.017-12.606 12.017z"/>
+                  </g>
+                </svg>
+                <span class="brand-name">Sony</span>
+              </div>
+              <!-- LG -->
+              <div class="brand-item" title="LG Electronics">
+                <svg viewBox="0 0 192.756 192.756" class="brand-logo-svg wide">
+                  <path d="M52.979 135.844c21.796 0 39.467-17.67 39.467-39.466s-17.67-39.466-39.467-39.466-39.467 17.67-39.467 39.466 17.67 39.466 39.467 39.466z" fill="#a70b52"/>
+                  <path fill="#ffffff" d="M62.589 110.267h-8.173v-30.89h-3.031v33.938h3.031v-.02h8.173z"/>
+                  <path d="M82.989 97.642H62.637v-3.031H85.97c.031.586.046 1.173.046 1.767 0 18.247-14.792 33.038-33.038 33.038S19.94 114.625 19.94 96.378 34.732 63.34 52.979 63.34c.481 0 .961.01 1.438.031l-.004 3.008a31.023 31.023 0 0 0-1.434-.033c-16.586 0-30.033 13.446-30.033 30.032 0 16.587 13.446 30.032 30.033 30.032 16.134 0 29.296-12.722 30.002-28.683l.008-.085z" fill="#ffffff"/>
+                  <path d="M40.655 88.521a4.642 4.642 0 1 0 0-9.285 4.642 4.642 0 0 0 0 9.285z" fill="#ffffff"/>
+                  <path fill="#808183" d="M112.043 115.75h28.201v-8.517h-17.847V76.735h-10.354zM174.317 79.482c-3.233-2.505-7.396-3.775-12.364-3.775-5.899 0-10.828 1.812-14.255 5.236-3.577 3.579-5.471 8.851-5.471 15.246 0 6.832 2.002 12.597 5.637 16.229 2.854 2.853 6.656 4.358 11.007 4.358 9.551 0 11.748-5.725 11.748-5.725V115.748h8.625V93.714h-17.169v6.895H169.977s.076 8.681-8.08 8.681c-2.072 0-3.918-.752-5.338-2.172-2.213-2.211-3.383-5.937-3.383-10.767 0-8 3.18-12.776 8.504-12.776 3.326 0 5.826 2.042 6.467 5.137h10.984c-.569-4.497-1.803-6.841-4.814-9.23z"/>
+                </svg>
+                <span class="brand-name">LG</span>
+              </div>
+              <!-- MSI -->
+              <div class="brand-item" title="MSI">
+                <svg viewBox="0 0 1886.832 440.865" class="brand-logo-svg wide" xmlns="http://www.w3.org/2000/svg">
+                  <g fill="#005DAA">
+                    <path d="M1603.571 440.835l120.68-332.82s-90.207 0-180.424 18.104l-114.084 314.715h173.828v.001zm-20.59-422.726l-23.162 63.932c90.762-18.13 180.41-18.13 180.41-18.13L1763.397 0c.008.011-90.194.011-180.416 18.109zM931.614 422.719c61.294 11.871 124.617 18.115 189.4 18.115h.021c102.809 0 145.068-10.227 198.406-37.449 45.443-23.244 75.313-47.902 88.152-90.371 11.004-36.393-3.057-70.74-35.672-92.595-32.629-21.85-64.232-32.179-101.754-52.88-32.83-18.093-50.725-31.731-48.535-50.709 4.605-39.815 47.168-52.92 105.818-52.92 57.158 0 113.082 5.175 167.342 15.065l22.088-60.867C1455.586 6.252 1392.235 0 1327.451 0c-102.814 0-145.055 10.226-198.4 37.465-45.457 23.235-75.324 47.893-88.166 90.385-10.996 36.386 3.057 70.712 35.701 92.563 32.602 21.847 64.189 32.189 101.75 52.919 32.807 18.086 50.73 31.713 48.498 50.689-4.613 39.828-47.17 52.877-105.797 52.877h-.029c-57.123 0-113.055-5.158-167.334-15.068l-22.06 60.889zM865.47 440.835l111.885-308.6c9.096-25.018 9.684-70.1-15.447-94.741C936.757 12.759 906.805.01 851.448.01c-55.353-.018-100.295 14.517-136.407 28.668-19.416 7.561-48.241 22.348-80.851 42.094-3.15-12.511-8.896-24.242-18.086-33.271C590.937 12.767 560.988.018 505.643.018 450.269.003 405.365 14.535 369.229 28.686c-19.407 7.56-48.24 22.347-80.85 42.093-3.145-12.511-8.896-24.241-18.086-33.271C245.133 12.775 215.19.026 159.824.026L-.001 440.864h173.85l79.924-220.445c14.486-39.979 53.912-78.051 75.555-94.774 27.532-21.263 150.738-55.112 117.175 37.469L345.818 440.835h173.857l79.917-220.46c14.501-39.965 53.919-78.014 75.546-94.729 27.532-21.263 150.739-55.112 117.168 37.469l-100.684 277.72H865.47z"/>
+                    <g>
+                      <path d="M1845.68 6.449h-10.41v26.838h-8.58V6.449h-10.4V.01h29.385v6.439h.005zM1886.832 33.288h-8.566v-22.28l-6.156 14.45h-5.891l-6.148-14.45v22.28h-8.064V.011h9.91l7.477 16.684L1876.83.011h10.006v33.277h-.004z"/>
+                    </g>
+                  </g>
+                </svg>
+                <span class="brand-name">MSI</span>
+              </div>
+              <!-- Asus -->
+              <div class="brand-item" title="ASUS">
+                <svg viewBox="0 0 24 24" class="brand-logo-svg wide">
+                  <path fill="currentColor" d="M23.904 10.788V9.522h-4.656c-.972 0-1.41.6-1.482 1.182v.018-1.2h-1.368v1.266h1.362zm-6.144.456l-1.368-.078v1.458c0 .456-.228.594-1.02.594H14.28c-.654 0-.93-.186-.93-.594v-1.596l-1.386-.102v1.812h-.03c-.078-.528-.276-1.14-1.596-1.23L6 11.22c0 .666.474 1.062 1.218 1.14l3.024.306c.24.018.414.09.414.288 0 .216-.18.24-.456.24H5.946V11.22l-1.386-.09v3.348h5.646c1.26 0 1.662-.654 1.722-1.2h.03c.156.864.912 1.2 2.19 1.2h1.41c1.494 0 2.202-.456 2.202-1.524zm4.398.258l-4.338-.258c0 .666.438 1.11 1.182 1.17l3.09.24c.24.018.384.078.384.276 0 .186-.168.258-.516.258h-4.212v1.29h4.302c1.356 0 1.95-.474 1.95-1.554 0-.972-.534-1.338-1.842-1.422zm-10.194-1.98h1.386v1.266h-1.386zM3.798 11.07l-1.506-.15L0 14.478h1.686zm7.914-1.548h-4.23c-.984 0-1.416.612-1.518 1.2v-1.2H3.618c-.33 0-.486.102-.642.33l-.648.936h9.384Z"/>
+                </svg>
+                <span class="brand-name">ASUS</span>
+              </div>
+              <!-- Xiaomi -->
+              <div class="brand-item" title="Xiaomi">
+                <svg viewBox="0 0 1024 1024" class="brand-logo-svg">
+                  <circle cx="512" cy="512" r="512" style="fill:#ff6900"/>
+                  <path d="M512 256c-85 0-154.54 5.44-202.82 53.67S256 427.37 256 512.26s4.91 154.35 53.21 202.6S427 768 512 768s154.52-4.91 202.79-53.14S768 597.12 768 512.26s-5-154.52-53.38-202.75S596.86 256 512 256zM360.66 414h120c31.36 0 64.15 1.45 80.3 17.64 15.91 15.91 17.64 47.64 17.71 78.42v96.85a3.2 3.2 0 0 1-3.27 3.09h-41.53a3.2 3.2 0 0 1-3.24-3.16v-98.5c0-17.19-1-34.86-9.9-43.75-7.64-7.68-21.89-9.41-36.69-9.77H408.7a3.2 3.2 0 0 0-3.22 3.14v148.93a3.2 3.2 0 0 1-3.24 3.16h-41.58a3.2 3.2 0 0 1-3.2-3.16V417.15a3.2 3.2 0 0 1 3.2-3.15zm258.79 0H661a3.2 3.2 0 0 1 3.2 3.2v189.7a3.2 3.2 0 0 1-3.2 3.1h-41.54a3.2 3.2 0 0 1-3.22-3.16V417.15a3.2 3.2 0 0 1 3.22-3.18zm-173.16 75.56h43.65a3.17 3.17 0 0 1 3.2 3.14v114.17a3.2 3.2 0 0 1-3.2 3.16h-43.65a3.2 3.2 0 0 1-3.24-3.16V492.69a3.2 3.2 0 0 1 3.24-3.13z" style="fill:#fff"/>
+                </svg>
+                <span class="brand-name">Xiaomi</span>
+              </div>
+              <!-- Logitech -->
+              <div class="brand-item" title="Logitech">
+                <svg viewBox="0 0 24 24" class="brand-logo-svg wide">
+                  <path fill="currentColor" d="M24 5.098a1.35 1.35 0 0 1-1.35 1.35 1.35 1.35 0 0 1-1.352-1.35 1.35 1.35 0 0 1 1.351-1.351A1.35 1.35 0 0 1 24 5.097zM16.549 18.31a2.289 2.289 0 0 1-2.322-2.322H12.2c0 2.449 1.9 4.264 4.306 4.264s4.348-1.857 4.348-4.264H18.87c-.043 1.351-1.056 2.322-2.322 2.322zm5.108-2.828h1.984V7.377h-1.984zM0 15.483h1.984V4H0v11.483zm7.135-8.359c-2.449 0-4.307 1.858-4.307 4.264a4.27 4.27 0 0 0 4.307 4.306c2.406 0 4.306-1.858 4.306-4.264S9.583 7.124 7.135 7.124zm0 6.628c-1.31 0-2.322-1.013-2.322-2.364a2.289 2.289 0 0 1 2.322-2.322 2.289 2.289 0 0 1 2.321 2.322c0 1.309-.97 2.364-2.321 2.364zm13.635-4.77V7.377h-2.828c-.464-.21-.929-.253-1.393-.253-2.449 0-4.348 1.858-4.348 4.306 0 2.449 1.9 4.264 4.306 4.264s4.306-1.858 4.306-4.264c0-.844-.254-1.604-.676-2.195zm-4.221 4.77c-1.309 0-2.322-1.013-2.322-2.364a2.289 2.289 0 0 1 2.322-2.322 2.289 2.289 0 0 1 2.322 2.322c0 1.309-1.056 2.364-2.322 2.364Z" />
+                </svg>
+                <span class="brand-name">Logitech</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ TEKNOLOJİ REHBERİ & BLOG (Tech News) ============ -->
+    <section class="section-block blog-section">
+      <div class="section-heading tracking-light-heading tracking-light-box" @mousemove="updateMouseTracking">
+        <div class="light-beam"></div>
+        <div class="mouse-glow"></div>
+        <div class="light-content heading-content-inner">
+          <div class="heading-title-group">
+            <span class="tracking-pulse-dot" style="background: var(--color-volt);"></span>
+            <h2>Teknoloji Dünyasından İpuçları</h2>
+          </div>
+          <span class="eyebrow">Alışverişinizden Önce Göz Atın</span>
+        </div>
+      </div>
+
+      <div class="blog-grid">
+        <!-- Blog Card 1 (Rehber - Monitör) -->
+        <article v-if="blogProductRehber" class="blog-card card tracking-light-box" @mousemove="updateMouseTracking">
+          <div class="light-beam"></div>
+          <div class="mouse-glow"></div>
+          <RouterLink :to="`/rehber/${blogProductRehber.id}`" class="blog-card-inner">
+            <div class="blog-image-wrapper">
+              <img :src="blogProductRehber.imageUrl" :alt="blogProductRehber.name" class="blog-img" />
+              <span class="blog-tag">Monitör Tavsiyesi</span>
+            </div>
+            <div class="blog-body">
+              <div class="blog-meta">
+                <span class="blog-brand">⚡ {{ blogProductRehber.brand }}</span>
+                <span class="blog-price price-mono">{{ formatCurrency(blogProductRehber.price) }} TL</span>
+              </div>
+              <h3 class="blog-title">{{ blogProductRehber.name }}</h3>
+              <p class="blog-excerpt">{{ blogProductRehber.description }}</p>
+
+              <div class="blog-read-btn">
+                <span>Ürünü İncele</span>
+                <span class="arrow">→</span>
+              </div>
+            </div>
+          </RouterLink>
+        </article>
+
+        <!-- Blog Card 2 (Donanım - Laptop) -->
+        <article v-if="blogProductDonanim" class="blog-card card tracking-light-box" @mousemove="updateMouseTracking">
+          <div class="light-beam"></div>
+          <div class="mouse-glow"></div>
+          <RouterLink :to="`/rehber/${blogProductDonanim.id}`" class="blog-card-inner">
+            <div class="blog-image-wrapper">
+              <img :src="blogProductDonanim.imageUrl" :alt="blogProductDonanim.name" class="blog-img" />
+              <span class="blog-tag">Donanım Canavarı</span>
+            </div>
+            <div class="blog-body">
+              <div class="blog-meta">
+                <span class="blog-brand">⚡ {{ blogProductDonanim.brand }}</span>
+                <span class="blog-price price-mono">{{ formatCurrency(blogProductDonanim.price) }} TL</span>
+              </div>
+              <h3 class="blog-title">{{ blogProductDonanim.name }}</h3>
+              <p class="blog-excerpt">{{ blogProductDonanim.description }}</p>
+
+              <div class="blog-read-btn">
+                <span>Ürünü İncele</span>
+                <span class="arrow">→</span>
+              </div>
+            </div>
+          </RouterLink>
+        </article>
+
+        <!-- Blog Card 3 (Ekipman - Klavye) -->
+        <article v-if="blogProductEkipman" class="blog-card card tracking-light-box" @mousemove="updateMouseTracking">
+          <div class="light-beam"></div>
+          <div class="mouse-glow"></div>
+          <RouterLink :to="`/rehber/${blogProductEkipman.id}`" class="blog-card-inner">
+            <div class="blog-image-wrapper">
+              <img :src="blogProductEkipman.imageUrl" :alt="blogProductEkipman.name" class="blog-img" />
+              <span class="blog-tag">Profesyonel Ekipman</span>
+            </div>
+            <div class="blog-body">
+              <div class="blog-meta">
+                <span class="blog-brand">⚡ {{ blogProductEkipman.brand }}</span>
+                <span class="blog-price price-mono">{{ formatCurrency(blogProductEkipman.price) }} TL</span>
+              </div>
+              <h3 class="blog-title">{{ blogProductEkipman.name }}</h3>
+              <p class="blog-excerpt">{{ blogProductEkipman.description }}</p>
+
+              <div class="blog-read-btn">
+                <span>Ürünü İncele</span>
+                <span class="arrow">→</span>
+              </div>
+            </div>
+          </RouterLink>
+        </article>
       </div>
     </section>
 
@@ -776,6 +1192,90 @@ function updateMouseTracking(e) {
         </div>
       </div>
     </section>
+
+    <!-- Floating Wheel Floater Button -->
+    <div class="spin-wheel-floater" @click="openWheelModal" title="Hediye Çarkı ile İndirim Kazan!">
+      <div class="floater-pulse"></div>
+      <span class="floater-icon">🎁</span>
+      <span class="floater-text">Şans Çarkı</span>
+    </div>
+
+    <!-- SHANS CARKI MODAL -->
+    <Teleport to="body">
+      <Transition name="wheel-fade">
+        <div v-if="showWheelModal" class="wheel-modal-overlay" @click.self="closeWheelModal">
+          <div class="wheel-modal-content card">
+            <button class="wheel-modal-close" @click="closeWheelModal" :disabled="isSpinning">&times;</button>
+            
+            <div class="wheel-modal-header">
+              <h2>🎁 Şans Çarkı - İndirim Kazan!</h2>
+              <p>Çarkı çevirerek alışverişinizde geçerli sürpriz indirim kodu kazanın.</p>
+            </div>
+
+            <div class="wheel-modal-body">
+              <!-- The Wheel Area -->
+              <div class="wheel-wrapper">
+                <div class="wheel-pointer">▼</div>
+                <div 
+                  class="wheel-outer" 
+                  :style="{ transform: `rotate(${wheelRotation}deg)`, transition: isSpinning ? 'transform 4s cubic-bezier(0.1, 0.8, 0.1, 1)' : 'none' }"
+                >
+                  <svg viewBox="0 0 200 200" class="wheel-svg">
+                    <!-- Outer stroke -->
+                    <circle cx="100" cy="100" r="95" fill="#11141e" stroke="var(--color-volt)" stroke-width="4" />
+                    <!-- Slices -->
+                    <g v-for="(item, idx) in wheelItems" :key="idx" :transform="`rotate(${idx * 45} 100 100)`">
+                      <path d="M100,100 L100,10 A90,90 0 0,1 163.64,36.36 Z" :fill="item.color" stroke="#11141e" stroke-width="2" />
+                      <!-- Radial oriented text -->
+                      <text 
+                        x="100" 
+                        y="48" 
+                        transform="rotate(22.5 100 100) rotate(90 100 48)" 
+                        fill="#11141e" 
+                        font-size="6.8" 
+                        font-weight="900" 
+                        text-anchor="middle"
+                      >
+                        {{ item.label }}
+                      </text>
+                    </g>
+                    <circle cx="100" cy="100" r="18" fill="var(--color-volt)" stroke="#11141e" stroke-width="3" />
+                  </svg>
+                  <div class="wheel-center-logo">🎡</div>
+                </div>
+              </div>
+
+              <!-- Bottom Message/Button Area -->
+              <div class="wheel-action-area">
+                <!-- Initial state -->
+                <div v-if="!hasSpun && !isSpinning" class="action-ready">
+                  <button class="btn-primary spin-btn" @click="spinWheel">Çarkı Çevir</button>
+                  <p class="spin-note">Her ziyaretçi yalnızca 1 kez çevirebilir.</p>
+                </div>
+
+                <!-- Spinning state -->
+                <div v-else-if="isSpinning" class="action-spinning">
+                  <div class="spin-loader"></div>
+                  <p class="spinning-text">Çark dönüyor, şansınız bol olsun...</p>
+                </div>
+
+                <!-- Completed state (Won coupon) -->
+                <div v-else class="action-completed fade-in-up">
+                  <div class="celebration-confetti">🎉 Tebrikler! 🎉</div>
+                  <p class="won-label">Kazandığınız Ödül: <strong>{{ wonItem?.label }}</strong></p>
+                  
+                  <div class="coupon-box" @click="copyCoupon" title="Kopyalamak için tıkla">
+                    <span class="coupon-code">{{ wonItem?.code }}</span>
+                    <button class="copy-btn-inner">{{ couponCopied ? 'Kopyalandı! ✓' : 'Kopyala 📋' }}</button>
+                  </div>
+                  <p class="coupon-usage-note">Bu kodu Sepetim sayfasında kupon kodu alanına yapıştırarak kullanabilirsiniz.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
   </div>
 </template>
 
@@ -1733,5 +2233,846 @@ section#kampanyalar {
   z-index: 999999 !important;
   padding: 6px !important;
   box-sizing: border-box !important;
+}
+
+/* ŞANS ÇARKI FLOATER BUTONU */
+.spin-wheel-floater {
+  position: fixed;
+  bottom: 24px;
+  left: 24px;
+  z-index: 9999;
+  background: #11141e;
+  border: 1.5px solid var(--color-volt);
+  border-radius: 40px;
+  padding: 10px 18px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7), 0 0 15px rgba(68, 214, 44, 0.2);
+  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.spin-wheel-floater:hover {
+  transform: scale(1.08) translateY(-3px);
+  border-color: #55efc4;
+  box-shadow: 0 12px 35px rgba(0, 0, 0, 0.8), 0 0 20px rgba(85, 239, 196, 0.4);
+}
+
+.floater-pulse {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-radius: 40px;
+  border: 1.5px solid var(--color-volt);
+  animation: floaterPulse 2s infinite;
+  pointer-events: none;
+}
+
+@keyframes floaterPulse {
+  0% {
+    transform: scale(1);
+    opacity: 0.8;
+  }
+  100% {
+    transform: scale(1.25);
+    opacity: 0;
+  }
+}
+
+.floater-icon {
+  font-size: 1.3rem;
+  animation: floaterWobble 2s infinite ease-in-out;
+}
+
+@keyframes floaterWobble {
+  0%, 100% { transform: rotate(0deg) scale(1); }
+  25% { transform: rotate(10deg) scale(1.1); }
+  75% { transform: rotate(-10deg) scale(1.1); }
+}
+
+.floater-text {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: white;
+  letter-spacing: 0.03em;
+}
+
+/* ŞANS ÇARKI MODAL OVERLAY & CONTENT */
+.wheel-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(5, 5, 8, 0.85);
+  backdrop-filter: blur(8px);
+  z-index: 100000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.wheel-modal-content {
+  width: 100%;
+  max-width: 480px;
+  background: #11141e;
+  border: 1.5px solid var(--color-line);
+  position: relative;
+  border-radius: 16px;
+  padding: 24px;
+  text-align: center;
+  box-shadow: 0 20px 50px rgba(0,0,0,0.8);
+}
+
+.wheel-modal-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  background: transparent;
+  border: none;
+  color: var(--color-slate);
+  font-size: 1.8rem;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.wheel-modal-close:hover:not(:disabled) {
+  color: white;
+}
+
+.wheel-modal-close:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.wheel-modal-header h2 {
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: white;
+  margin: 0 0 6px 0;
+}
+
+.wheel-modal-header p {
+  font-size: 0.82rem;
+  color: var(--color-slate);
+  margin: 0;
+}
+
+/* ÇARK ALANI VE SVG */
+.wheel-wrapper {
+  position: relative;
+  width: 280px;
+  height: 280px;
+  margin: 28px auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.wheel-pointer {
+  position: absolute;
+  top: -8px;
+  left: calc(50% - 12px);
+  width: 24px;
+  height: 24px;
+  z-index: 10;
+  color: var(--color-volt);
+  font-size: 1.6rem;
+  filter: drop-shadow(0 4px 6px rgba(0,0,0,0.6));
+  line-height: 1;
+}
+
+.wheel-outer {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+  position: relative;
+}
+
+.wheel-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.wheel-center-logo {
+  position: absolute;
+  top: calc(50% - 15px);
+  left: calc(50% - 15px);
+  width: 30px;
+  height: 30px;
+  background: #11141e;
+  border: 2px solid var(--color-volt);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  z-index: 3;
+  box-shadow: 0 0 8px rgba(68, 214, 44, 0.4);
+}
+
+/* AKSİYON ALANI & KUPON KARTLARI */
+.wheel-action-area {
+  min-height: 110px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+
+.spin-btn {
+  padding: 12px 36px;
+  font-size: 1.05rem;
+  font-weight: 800;
+  border-radius: 30px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.spin-note {
+  font-size: 0.72rem;
+  color: var(--color-slate);
+  margin: 8px 0 0 0;
+}
+
+/* Çevirme Loader'ı */
+.action-spinning {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.spin-loader {
+  width: 32px;
+  height: 32px;
+  border: 3px solid rgba(255, 255, 255, 0.1);
+  border-top-color: var(--color-volt);
+  border-radius: 50%;
+  animation: spinLoading 0.8s linear infinite;
+}
+
+@keyframes spinLoading {
+  to { transform: rotate(360deg); }
+}
+
+.spinning-text {
+  font-size: 0.85rem;
+  color: var(--color-slate);
+  margin: 0;
+  font-style: italic;
+}
+
+/* Kazandı Ekranı */
+.action-completed {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.celebration-confetti {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: var(--color-volt);
+  animation: bounceCelebration 1s infinite alternate;
+}
+
+@keyframes bounceCelebration {
+  from { transform: translateY(0); }
+  to { transform: translateY(-4px); }
+}
+
+.won-label {
+  font-size: 0.9rem;
+  color: white;
+  margin: 0;
+}
+
+.coupon-box {
+  display: flex;
+  background: rgba(68, 214, 44, 0.06);
+  border: 1.5px dashed var(--color-volt);
+  border-radius: 8px;
+  overflow: hidden;
+  margin: 6px 0;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  width: 100%;
+  max-width: 320px;
+}
+
+.coupon-box:hover {
+  background: rgba(68, 214, 44, 0.12);
+  transform: scale(1.02);
+}
+
+.coupon-code {
+  flex: 1;
+  padding: 10px 14px;
+  font-family: var(--font-mono);
+  font-weight: 800;
+  font-size: 1.1rem;
+  color: white;
+  letter-spacing: 0.05em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.copy-btn-inner {
+  background: var(--color-volt);
+  border: none;
+  color: black;
+  padding: 0 16px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.2s;
+  white-space: nowrap;
+}
+
+.copy-btn-inner:hover {
+  background: #55efc4;
+}
+
+.coupon-usage-note {
+  font-size: 0.72rem;
+  color: var(--color-slate);
+  margin: 4px 0 0 0;
+  max-width: 360px;
+  line-height: 1.4;
+}
+
+/* Transitions */
+.wheel-fade-enter-active, .wheel-fade-leave-active {
+  transition: opacity 0.3s ease;
+}
+
+.wheel-fade-enter-from, .wheel-fade-leave-to {
+  opacity: 0;
+}
+
+/* SON İNCELENEN ÜRÜNLER */
+.recently-viewed-block {
+  margin-top: 40px;
+}
+
+.recently-viewed-header {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  width: 100% !important;
+  flex-direction: row !important;
+}
+
+.rv-carousel-nav {
+  display: flex;
+  gap: 8px;
+}
+
+.rv-carousel-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  color: var(--color-ink);
+  font-size: 1rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.rv-carousel-btn:hover {
+  background: var(--color-volt);
+  color: #0b0f19;
+  border-color: var(--color-volt);
+}
+
+.recently-viewed-carousel {
+  display: flex;
+  gap: 16px;
+  overflow-x: auto;
+  scroll-behavior: smooth;
+  padding: 10px 4px;
+  scrollbar-width: none; /* Firefox */
+}
+
+.recently-viewed-carousel::-webkit-scrollbar {
+  display: none; /* Safari & Chrome */
+}
+
+.recently-viewed-card {
+  min-width: 250px;
+  max-width: 250px;
+  flex-shrink: 0;
+}
+
+/* BÜLTEN ABONELİĞİ */
+.newsletter-section {
+  margin-top: 40px;
+  width: 100%;
+}
+
+.newsletter-banner {
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.95), rgba(30, 41, 59, 0.9));
+  border: 1px solid var(--color-line);
+  border-radius: 12px;
+  padding: 30px;
+  position: relative;
+  overflow: hidden;
+}
+
+.newsletter-content {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: center;
+  gap: 30px;
+  z-index: 2;
+  position: relative;
+}
+
+.newsletter-info h2 {
+  font-size: 1.4rem;
+  font-weight: 800;
+  color: white;
+  margin: 0 0 10px 0;
+}
+
+.newsletter-info p {
+  font-size: 0.9rem;
+  color: var(--color-slate);
+  margin: 0;
+  line-height: 1.5;
+}
+
+.newsletter-info strong {
+  color: var(--color-volt);
+}
+
+.newsletter-form-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.newsletter-form {
+  display: flex;
+  gap: 10px;
+}
+
+.newsletter-form input {
+  flex: 1;
+  padding: 12px 16px;
+  font-size: 0.9rem;
+  background: rgba(10, 12, 20, 0.85);
+  border: 1.5px solid var(--color-line);
+  color: white;
+  border-radius: var(--radius-sm);
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.newsletter-form input:focus {
+  border-color: var(--color-volt);
+}
+
+.newsletter-form button {
+  padding: 0 24px;
+  font-weight: 700;
+  font-size: 0.9rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+/* Bülten Mesajları */
+.newsletter-msg {
+  font-size: 0.82rem;
+  margin: 0;
+  font-weight: 600;
+}
+
+.newsletter-msg.error-msg {
+  color: var(--color-danger);
+}
+
+.success-box {
+  background: rgba(68, 214, 44, 0.05);
+  border: 1.5px solid rgba(68, 214, 44, 0.2);
+  border-radius: 8px;
+  padding: 12px 16px;
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  color: var(--color-success);
+}
+
+.msg-icon {
+  font-size: 1.3rem;
+  line-height: 1;
+}
+
+.newsletter-coupon-box {
+  margin-top: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(68, 214, 44, 0.1);
+  border: 1px dashed var(--color-success);
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  color: white;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.newsletter-coupon-box:hover {
+  background: rgba(68, 214, 44, 0.15);
+  transform: scale(1.02);
+}
+
+.newsletter-code {
+  color: var(--color-volt);
+  font-family: var(--font-mono);
+  font-size: 0.88rem;
+}
+
+.copy-hint {
+  font-size: 0.7rem;
+  color: var(--color-slate);
+}
+
+@media (max-width: 850px) {
+  .newsletter-content {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+}
+
+/* YETKİLİ DİSTRİBÜTÖRÜ OLDUĞUMUZ MARKALAR PANELI */
+.brands-section {
+  margin-top: 30px;
+  width: 100%;
+}
+
+.brands-wrapper {
+  background: rgba(255, 255, 255, 0.01);
+  border: 1px solid var(--color-line);
+  border-radius: 12px;
+  padding: 24px;
+  position: relative;
+  overflow: hidden;
+}
+
+.brands-container {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  z-index: 2;
+  position: relative;
+}
+
+.brands-title {
+  text-align: center;
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: var(--color-slate);
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  padding-bottom: 10px;
+}
+
+.brands-slider {
+  overflow: hidden;
+  width: 100%;
+  position: relative;
+  mask-image: linear-gradient(to right, transparent, black 15%, black 85%, transparent);
+  -webkit-mask-image: linear-gradient(to right, transparent, black 15%, black 85%, transparent);
+  padding: 10px 0;
+}
+
+.brands-slider:hover .brands-track {
+  animation-play-state: paused;
+}
+
+.brands-track {
+  display: flex;
+  align-items: center;
+  gap: 60px;
+  width: max-content;
+  animation: marquee-scroll 35s linear infinite;
+}
+
+.brand-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  filter: grayscale(100%) opacity(0.45);
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+  flex-shrink: 0;
+}
+
+.brand-item:hover {
+  filter: grayscale(0%) opacity(1);
+  transform: translateY(-3px) scale(1.06);
+}
+
+.brand-logo-svg {
+  width: 36px;
+  height: 36px;
+  color: white;
+  transition: transform 0.2s;
+  flex-shrink: 0;
+}
+
+.brand-logo-svg.wide {
+  width: auto;
+  height: 24px;
+  max-width: 90px;
+}
+
+.brand-logo-svg.sq-logo {
+  border-radius: 8px;
+  width: 36px;
+  height: 36px;
+}
+
+.brand-name {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: white;
+}
+
+@keyframes marquee-scroll {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+@media (max-width: 768px) {
+  .brands-track {
+    gap: 40px;
+    animation-duration: 25s;
+  }
+  .brand-item {
+    filter: grayscale(0%) opacity(0.85);
+  }
+}
+
+/* BLOG KARTLARI */
+.blog-section {
+  margin-top: 40px;
+}
+
+.blog-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 24px;
+  margin-top: 24px;
+}
+
+.blog-card {
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--color-surface);
+  border: 1.5px solid var(--color-line);
+  transition: all 0.3s ease;
+}
+
+.blog-card .mouse-glow {
+  background: radial-gradient(
+    220px circle at var(--mouse-x, 50%) var(--mouse-y, 50%),
+    rgba(68, 214, 44, 0.2),
+    rgba(0, 255, 255, 0.09) 40%,
+    transparent 75%
+  ) !important;
+  opacity: 0.45 !important;
+}
+
+.blog-card:hover {
+  transform: translateY(-5px);
+  border-color: var(--color-volt);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.3), 0 0 15px rgba(223, 249, 251, 0.05);
+}
+
+.blog-card-inner {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  text-decoration: none;
+  color: inherit;
+}
+
+.blog-image-wrapper {
+  height: 180px;
+  position: relative;
+  overflow: hidden;
+  background-color: #ffffff; /* Ürün resimlerinin beyaz arka planıyla bütünleşmesi için */
+  border-bottom: 1.5px solid var(--color-line);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.blog-image-wrapper::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.02); /* Hafif gölge */
+  pointer-events: none;
+}
+
+.blog-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  padding: 8px; /* Resmi daha büyük ve net göstermek için padding azaltıldı */
+  transition: transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+.blog-card:hover .blog-img {
+  transform: scale(1.08);
+}
+
+
+
+.blog-tag {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  background: rgba(0, 0, 0, 0.7);
+  color: var(--color-volt);
+  border: 1px solid var(--color-volt);
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  backdrop-filter: blur(4px);
+}
+
+.blog-body {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+}
+
+.blog-meta {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-size: 0.82rem;
+  color: var(--color-slate);
+  margin-bottom: 12px;
+  width: 100%;
+}
+
+.blog-brand {
+  font-weight: 700;
+  color: var(--color-volt);
+  text-transform: uppercase;
+}
+
+.blog-price {
+  font-weight: 800;
+  color: white;
+  margin-left: auto;
+}
+
+.blog-title {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: white;
+  margin: 0 0 10px 0;
+  line-height: 1.4;
+  transition: color 0.2s;
+}
+
+.blog-card:hover .blog-title {
+  color: var(--color-volt);
+}
+
+.blog-excerpt {
+  font-size: 0.88rem;
+  color: var(--color-slate);
+  line-height: 1.6;
+  margin: 0 0 20px 0;
+  flex-grow: 1;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.blog-read-btn {
+  background: transparent;
+  border: none;
+  color: var(--color-volt);
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  transition: all 0.2s;
+}
+
+.blog-read-btn .arrow {
+  transition: transform 0.2s;
+}
+
+.blog-card:hover .blog-read-btn .arrow {
+  transform: translateX(4px);
+}
+
+/* BLOG ÜRÜN ÖZELLİKLERİ DEĞERLERİ */
+.blog-specs {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 20px;
+  background: rgba(255, 255, 255, 0.015);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  padding: 10px 12px;
+  border-radius: 8px;
+}
+
+.spec-tag {
+  font-size: 0.78rem;
+  color: var(--color-slate);
+  display: flex;
+  justify-content: space-between;
+  border-bottom: 1px dashed rgba(255, 255, 255, 0.04);
+  padding-bottom: 4px;
+}
+
+.spec-tag:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.spec-tag strong {
+  color: white;
+  font-weight: 600;
 }
 </style>

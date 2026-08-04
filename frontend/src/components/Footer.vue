@@ -2,62 +2,104 @@
 import { ref } from 'vue'
 import api from '../api/axios'
 
-const email = ref('')
-const loading = ref(false)
-const message = ref('')
-const isError = ref(false)
 
-async function handleSubscribe() {
-  if (!email.value || !email.value.includes('@')) {
-    message.value = 'Lütfen geçerli bir e-posta adresi giriniz.'
-    isError.value = true
+
+// ---- HORIZONTAL NEWSLETTER BANNER (10% KUPONLU) ----
+const newsletterEmail = ref('')
+const newsletterSuccessMsg = ref('')
+const newsletterErrorMsg = ref('')
+const newsletterLoading = ref(false)
+const newsletterCouponCode = ref('')
+const newsletterCopied = ref(false)
+
+async function handleNewsletterSubscribe() {
+  newsletterSuccessMsg.value = ''
+  newsletterErrorMsg.value = ''
+  newsletterCouponCode.value = ''
+  
+  if (!newsletterEmail.value) {
+    newsletterErrorMsg.value = 'E-posta adresi zorunludur.'
     return
   }
 
-  loading.value = true
-  message.value = ''
-  isError.value = false
-
+  newsletterLoading.value = true
   try {
-    const res = await api.post('/auth/subscribe-newsletter', { email: email.value })
-    message.value = res.data?.message || 'Bültenimize başarıyla kaydoldunuz! Teşekkür ederiz 🎉'
-    isError.value = false
-    email.value = ''
+    const res = await api.post('/newsletter/subscribe', { email: newsletterEmail.value })
+    newsletterSuccessMsg.value = res.data.message
+    newsletterCouponCode.value = res.data.couponCode
+    newsletterEmail.value = ''
   } catch (err) {
-    message.value = err.response?.data?.message || 'Abonelik oluşturulurken bir hata oluştu.'
-    isError.value = true
+    newsletterErrorMsg.value = err.response?.data?.message || 'Abonelik sırasında bir hata oluştu.'
   } finally {
-    loading.value = false
+    newsletterLoading.value = false
   }
+}
+
+function copyNewsletterCoupon() {
+  if (!newsletterCouponCode.value) return
+  navigator.clipboard.writeText(newsletterCouponCode.value)
+  newsletterCopied.value = true
+  setTimeout(() => {
+    newsletterCopied.value = false
+  }, 2000)
+}
+
+function updateMouseTracking(e) {
+  const el = e.currentTarget
+  if (!el) return
+  const rect = el.getBoundingClientRect()
+  const x = e.clientX - rect.left
+  const y = e.clientY - rect.top
+  el.style.setProperty('--mouse-x', `${x}px`)
+  el.style.setProperty('--mouse-y', `${y}px`)
 }
 </script>
 
 <template>
   <footer class="footer">
     <div class="footer-content">
-      <!-- Newsletter -->
-      <div class="newsletter-section">
-        <div class="newsletter-left">
-          <h3>🔔 Kampanyalardan Haberdar Olun</h3>
-          <p>En yeni ürünler ve özel indirimleri e-posta ile takip edin.</p>
-        </div>
-        <div class="newsletter-box">
-          <form class="newsletter-form" @submit.prevent="handleSubscribe">
-            <input
-              v-model="email"
-              type="email"
-              placeholder="E-posta adresiniz"
-              :disabled="loading"
-              required
-            />
-            <button type="submit" class="btn-primary" :disabled="loading">
-              <span v-if="loading" class="spinner">⏳</span>
-              <span v-else>Abone Ol</span>
-            </button>
-          </form>
-          <p v-if="message" :class="['newsletter-feedback', isError ? 'feedback-error' : 'feedback-success']">
-            {{ message }}
-          </p>
+
+
+      <!-- Horizontal Coupon Newsletter Banner -->
+      <div class="newsletter-banner-wrapper">
+        <div class="newsletter-banner tracking-light-box" @mousemove="updateMouseTracking">
+          <div class="light-beam"></div>
+          <div class="mouse-glow"></div>
+          <div class="light-content newsletter-content">
+            <div class="newsletter-info">
+              <h2>📧 Fırsatları Kaçırmayın!</h2>
+              <p>E-bültenimize abone olun, ilk alışverişinizde geçerli <strong>%10 İndirim Kuponu</strong> anında kazanın!</p>
+            </div>
+            <div class="newsletter-form-container">
+              <form @submit.prevent="handleNewsletterSubscribe" class="newsletter-form-horizontal">
+                <input 
+                  v-model="newsletterEmail" 
+                  type="email" 
+                  placeholder="E-posta adresinizi girin..." 
+                  required 
+                  :disabled="newsletterLoading"
+                />
+                <button type="submit" class="btn-primary" :disabled="newsletterLoading">
+                  {{ newsletterLoading ? 'Kaydediliyor...' : 'Abone Ol' }}
+                </button>
+              </form>
+              
+              <Transition name="newsletter-fade">
+                <div v-if="newsletterSuccessMsg" class="newsletter-msg success-box fade-in-up">
+                  <span class="msg-icon">🎉</span>
+                  <div>
+                    <p>{{ newsletterSuccessMsg }}</p>
+                    <div class="newsletter-coupon-box" @click="copyNewsletterCoupon" title="Kopyalamak için tıkla">
+                      Kupon Kodunuz: <strong class="newsletter-code">{{ newsletterCouponCode }}</strong>
+                      <span class="copy-hint">({{ newsletterCopied ? 'Kopyalandı! ✓' : 'Tıkla Kopyala 📋' }})</span>
+                    </div>
+                  </div>
+                </div>
+              </Transition>
+              
+              <p v-if="newsletterErrorMsg" class="newsletter-msg error-msg">{{ newsletterErrorMsg }}</p>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -352,6 +394,147 @@ async function handleSubscribe() {
   }
   .newsletter-form {
     min-width: 0;
+  }
+}
+
+/* HORIZONTAL COUPON BANNER IN FOOTER */
+.newsletter-banner-wrapper {
+  margin-top: 15px;
+  margin-bottom: 25px;
+  width: 100%;
+}
+
+.newsletter-banner {
+  background: rgba(255, 255, 255, 0.01);
+  border: 1px solid var(--color-line);
+  border-radius: 12px;
+  position: relative;
+  overflow: hidden;
+}
+
+.newsletter-content {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  align-items: center;
+  gap: 40px;
+  padding: 30px 40px !important;
+}
+
+.newsletter-info h2 {
+  color: white;
+  font-size: 1.4rem;
+  font-weight: 800;
+  margin: 0 0 8px;
+}
+
+.newsletter-info p {
+  color: var(--color-slate);
+  font-size: 0.9rem;
+  margin: 0;
+  line-height: 1.5;
+}
+
+.newsletter-info strong {
+  color: var(--color-volt);
+}
+
+.newsletter-form-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.newsletter-form-horizontal {
+  display: flex;
+  gap: 10px;
+}
+
+.newsletter-form-horizontal input {
+  flex: 1;
+  padding: 12px 16px;
+  font-size: 0.9rem;
+  background: rgba(10, 12, 20, 0.85);
+  border: 1.5px solid var(--color-line);
+  color: white;
+  border-radius: var(--radius-sm);
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.newsletter-form-horizontal input:focus {
+  border-color: var(--color-volt);
+}
+
+.newsletter-form-horizontal button {
+  padding: 0 24px;
+  font-weight: 700;
+  font-size: 0.9rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.newsletter-msg {
+  font-size: 0.82rem;
+  margin: 0;
+  font-weight: 600;
+}
+
+.newsletter-msg.error-msg {
+  color: var(--color-danger);
+}
+
+.success-box {
+  background: rgba(68, 214, 44, 0.05);
+  border: 1.5px solid rgba(68, 214, 44, 0.2);
+  border-radius: 8px;
+  padding: 12px 16px;
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  color: var(--color-success);
+}
+
+.msg-icon {
+  font-size: 1.3rem;
+  line-height: 1;
+}
+
+.newsletter-coupon-box {
+  margin-top: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(68, 214, 44, 0.1);
+  border: 1px dashed var(--color-success);
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  color: white;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.newsletter-coupon-box:hover {
+  background: rgba(68, 214, 44, 0.15);
+  transform: scale(1.02);
+}
+
+.newsletter-code {
+  color: var(--color-volt);
+  font-family: var(--font-mono);
+  font-size: 0.88rem;
+}
+
+.copy-hint {
+  font-size: 0.7rem;
+  color: var(--color-slate);
+}
+
+@media (max-width: 850px) {
+  .newsletter-content {
+    grid-template-columns: 1fr;
+    gap: 20px;
+    padding: 20px !important;
   }
 }
 </style>

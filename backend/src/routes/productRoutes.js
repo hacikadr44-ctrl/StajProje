@@ -14,8 +14,12 @@ const { getReviews, createReview } = require('../controllers/reviewController');
 
 // ÖNEMLİ: sabit yollar (/featured, /filters) /: id yolundan ÖNCE tanımlanmalı,
 // yoksa Express "featured" kelimesini bir ürün id'si sanıp getProductById'e yönlendirir.
+const { addRecentlyViewed, getRecentlyViewed } = require('../controllers/recentlyViewedController');
+
 router.get('/featured', getFeaturedProducts);
 router.get('/filters', getFilterOptions);
+router.get('/viewed', protect, getRecentlyViewed);
+router.post('/viewed', protect, addRecentlyViewed);
 
 router.get('/', getProducts);
 router.get('/:id', getProductById);

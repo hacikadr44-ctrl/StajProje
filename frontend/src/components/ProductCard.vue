@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { useFavoritesStore } from '../stores/favorites'
 import { useCompareStore } from '../stores/compare'
+import { formatCurrency } from '../utils/format'
 
 const props = defineProps({
   product: { type: Object, required: true },
@@ -38,6 +39,12 @@ function handleImageError(e) {
   e.target.src = 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=600&auto=format&fit=crop&q=80'
 }
 
+function handleQuickView(e) {
+  e.preventDefault()
+  e.stopPropagation()
+  router.push(`/urun/${props.product.id}`)
+}
+
 function updateMouseTracking(e) {
   const el = e.currentTarget
   if (!el) return
@@ -70,7 +77,7 @@ function updateMouseTracking(e) {
         >♥</button>
         <!-- Quick actions overlay -->
         <div class="quick-actions">
-          <button class="quick-btn" @click.prevent.stop title="Hızlı İncele">👁️</button>
+          <button class="quick-btn" @click="handleQuickView" title="Hızlı İncele">👁️</button>
           <button class="quick-btn compare-btn" :class="{ active: compareStore.isInCompare(product.id) }" @click="handleCompareClick" title="Karşılaştır">⇄</button>
         </div>
       </div>
@@ -84,8 +91,8 @@ function updateMouseTracking(e) {
         </p>
 
         <div class="price-row">
-          <span v-if="hasDiscount" class="old-price">{{ Number(product.originalPrice).toFixed(2) }} TL</span>
-          <span class="price">{{ Number(product.price).toFixed(2) }} TL</span>
+          <span v-if="hasDiscount" class="old-price">{{ formatCurrency(product.originalPrice) }} TL</span>
+          <span class="price">{{ formatCurrency(product.price) }} TL</span>
         </div>
 
         <div class="card-footer">

@@ -1,6 +1,7 @@
 <script setup>
 import { computed } from 'vue'
 import { useCompareStore } from '../stores/compare'
+import { formatCurrency } from '../utils/format'
 
 const compareStore = useCompareStore()
 
@@ -41,7 +42,7 @@ const allSpecKeys = computed(() => {
           </tr>
           <tr>
             <td class="row-label">Fiyat</td>
-            <td v-for="p in compareStore.products" :key="p.id">{{ Number(p.price).toFixed(2) }} TL</td>
+            <td v-for="p in compareStore.products" :key="p.id">{{ formatCurrency(p.price) }} TL</td>
           </tr>
           <tr>
             <td class="row-label">Stok</td>

@@ -8,6 +8,9 @@ const OrderItem = require('./OrderItem');
 const Review = require('./Review');
 const Favorite = require('./Favorite');
 const Address = require('./Address');
+const RecentlyViewed = require('./RecentlyViewed');
+const Newsletter = require('./Newsletter');
+const PriceAlert = require('./PriceAlert');
 
 // --- İLİŞKİLER ---
 
@@ -47,6 +50,18 @@ Favorite.belongsTo(User, { foreignKey: 'userId' });
 Product.hasMany(Favorite, { foreignKey: 'productId', onDelete: 'CASCADE' });
 Favorite.belongsTo(Product, { foreignKey: 'productId' });
 
+// Son İncelenenler: User <-> Product (N-N, ara tablo RecentlyViewed)
+User.hasMany(RecentlyViewed, { foreignKey: 'userId', onDelete: 'CASCADE' });
+RecentlyViewed.belongsTo(User, { foreignKey: 'userId' });
+Product.hasMany(RecentlyViewed, { foreignKey: 'productId', onDelete: 'CASCADE' });
+RecentlyViewed.belongsTo(Product, { foreignKey: 'productId' });
+
+// Fiyat Alarmları: User <-> Product (N-N, ara tablo PriceAlert)
+User.hasMany(PriceAlert, { foreignKey: 'userId', onDelete: 'CASCADE' });
+PriceAlert.belongsTo(User, { foreignKey: 'userId' });
+Product.hasMany(PriceAlert, { foreignKey: 'productId', onDelete: 'CASCADE' });
+PriceAlert.belongsTo(Product, { foreignKey: 'productId' });
+
 module.exports = {
   sequelize,
   User,
@@ -58,4 +73,7 @@ module.exports = {
   Review,
   Favorite,
   Address,
+  RecentlyViewed,
+  Newsletter,
+  PriceAlert,
 };

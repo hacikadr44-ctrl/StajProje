@@ -9,6 +9,7 @@ const cartRoutes = require('./routes/cartRoutes');
 const orderRoutes = require('./routes/orderRoutes');
 const favoriteRoutes = require('./routes/favoriteRoutes');
 const addressRoutes = require('./routes/addressRoutes');
+const priceAlertRoutes = require('./routes/priceAlertRoutes');
 
 const app = express();
 
@@ -54,6 +55,10 @@ app.use('/api/cart', cartRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/favorites', favoriteRoutes);
 app.use('/api/addresses', addressRoutes);
+app.use('/api/price-alerts', priceAlertRoutes);
+
+const { subscribeNewsletter } = require('./controllers/newsletterController');
+app.post('/api/newsletter/subscribe', subscribeNewsletter);
 
 app.get('/', (req, res) => {
   res.json({ message: 'E-Ticaret API çalışıyor 🚀' });

@@ -13,10 +13,12 @@ import Favorites from '../views/Favorites.vue'
 import Compare from '../views/Compare.vue'
 import Profile from '../views/Profile.vue'
 import ForgotPassword from '../views/ForgotPassword.vue'
+import RehberDetail from '../views/RehberDetail.vue'
 
 const routes = [
   { path: '/', name: 'home', component: Home },
   { path: '/urun/:id', name: 'product-detail', component: ProductDetail },
+  { path: '/rehber/:id', name: 'rehber-detail', component: RehberDetail },
   { path: '/sepet', name: 'cart', component: Cart, meta: { requiresAuth: true } },
   { path: '/giris', name: 'login', component: Login },
   { path: '/kayit', name: 'register', component: Register },

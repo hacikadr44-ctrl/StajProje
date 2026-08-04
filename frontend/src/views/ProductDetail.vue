@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import api from '../api/axios'
 import { useAuthStore } from '../stores/auth'
@@ -7,6 +7,7 @@ import { useCartStore } from '../stores/cart'
 import { useFavoritesStore } from '../stores/favorites'
 import { useCompareStore } from '../stores/compare'
 import ProductCard from '../components/ProductCard.vue'
+import { formatCurrency } from '../utils/format'
 
 const route = useRoute()
 const router = useRouter()
@@ -42,7 +43,7 @@ const installmentOptions = computed(() => {
   if (!product.value) return []
   return [2, 3, 6, 9, 12].map((count) => ({
     count,
-    monthly: (Number(product.value.price) / count).toFixed(2),
+    monthly: formatCurrency(Number(product.value.price) / count),
   }))
 })
 
@@ -54,6 +55,40 @@ const specsEntries = computed(() => {
 // ---- BENZER ÜRÜNLER ----
 const similarProducts = ref([])
 const similarScrollRef = ref(null)
+
+// ---- DİNAMİK TESLİMAT & CANLI İZLEYİCİ ----
+const timeLeftToShip = ref('')
+const liveViewersCount = ref(Math.floor(Math.random() * 18) + 8)
+let timerId = null
+let viewersInterval = null
+
+function updateShipCountdown() {
+  const now = new Date()
+  const hour = now.getHours()
+  const day = now.getDay() // 0 = Pazar, 6 = Cumartesi
+
+  // Hafta içi ve saat 17:00'den önceyse
+  if (day !== 0 && day !== 6 && hour < 17) {
+    const cutoff = new Date()
+    cutoff.setHours(17, 0, 0, 0)
+    const diffMs = cutoff - now
+    const diffHrs = Math.floor(diffMs / (1000 * 60 * 60))
+    const diffMins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60))
+    const diffSecs = Math.floor((diffMs % (1000 * 60)) / 1000)
+    
+    const pad = (n) => String(n).padStart(2, '0')
+    timeLeftToShip.value = `${pad(diffHrs)}:${pad(diffMins)}:${pad(diffSecs)}`
+  } else {
+    timeLeftToShip.value = ''
+  }
+}
+
+function startLiveViewers() {
+  viewersInterval = setInterval(() => {
+    const change = Math.random() > 0.5 ? Math.floor(Math.random() * 2) + 1 : -(Math.floor(Math.random() * 2) + 1)
+    liveViewersCount.value = Math.max(5, Math.min(45, liveViewersCount.value + change))
+  }, 6000)
+}
 
 async function fetchSimilarProducts() {
   if (!product.value?.categoryId) return
@@ -75,6 +110,15 @@ async function fetchProduct() {
   product.value = res.data
   activeImage.value = res.data.imageUrl
   fetchSimilarProducts()
+
+  // Son incelenen ürün kaydı (giriş yapmış kullanıcı için)
+  if (authStore.isLoggedIn) {
+    try {
+      await api.post('/products/viewed', { productId: product.value.id })
+    } catch (e) {
+      console.error('İncelenen ürün kaydedilemedi:', e)
+    }
+  }
 }
 async function fetchReviews() {
   const res = await api.get(`/products/${route.params.id}/reviews`)
@@ -95,6 +139,15 @@ onMounted(() => {
   fetchReviews()
   checkPurchaseStatus()
   if (authStore.isLoggedIn) favoritesStore.fetchFavorites()
+  
+  updateShipCountdown()
+  timerId = setInterval(updateShipCountdown, 1000)
+  startLiveViewers()
+})
+
+onUnmounted(() => {
+  if (timerId) clearInterval(timerId)
+  if (viewersInterval) clearInterval(viewersInterval)
 })
 watch(
   () => route.params.id,
@@ -215,6 +268,45 @@ function increaseQty() {
 function decreaseQty() {
   if (quantity.value > 1) quantity.value--
 }
+
+// ---- FIYAT ALARMI ----
+const showAlertModal = ref(false)
+const alertTargetPrice = ref('')
+const alertMsg = ref('')
+const alertError = ref('')
+const alertLoading = ref(false)
+
+function openAlertModal() {
+  if (!authStore.isLoggedIn) { router.push('/giris'); return }
+  alertMsg.value = ''
+  alertError.value = ''
+  alertTargetPrice.value = ''
+  showAlertModal.value = true
+}
+
+async function submitPriceAlert() {
+  alertMsg.value = ''
+  alertError.value = ''
+  const target = Number(alertTargetPrice.value)
+  if (!target || target <= 0) {
+    alertError.value = 'Geçerli bir hedef fiyat giriniz.'
+    return
+  }
+  if (target >= Number(product.value.price)) {
+    alertError.value = `Hedef fiyat mevcut fiyattan (${formatCurrency(product.value.price)} TL) düşük olmalıdır.`
+    return
+  }
+  alertLoading.value = true
+  try {
+    const res = await api.post('/price-alerts', { productId: product.value.id, targetPrice: target })
+    alertMsg.value = res.data.message || 'Fiyat alarmı oluşturuldu! 🔔'
+    setTimeout(() => { showAlertModal.value = false }, 2200)
+  } catch (err) {
+    alertError.value = err.response?.data?.message || 'Alarm oluşturulamadı.'
+  } finally {
+    alertLoading.value = false
+  }
+}
 </script>
 
 <template>
@@ -284,15 +376,23 @@ function decreaseQty() {
         <p class="description">{{ product.description }}</p>
 
         <div class="price-row">
-          <span v-if="hasDiscount" class="old-price">{{ Number(product.originalPrice).toFixed(2) }} TL</span>
-          <span class="price">{{ Number(product.price).toFixed(2) }} TL</span>
+          <span v-if="hasDiscount" class="old-price">{{ formatCurrency(product.originalPrice) }} TL</span>
+          <span class="price">{{ formatCurrency(product.price) }} TL</span>
           <span v-if="hasDiscount" class="discount-badge">%{{ discountPercent }} indirim</span>
         </div>
 
-        <p class="stock-info" :class="{ low: product.stock === 0 }">
-          <span class="stock-dot" :class="{ 'in-stock': product.stock > 0 }"></span>
-          {{ product.stock > 0 ? `Stokta ${product.stock} adet var` : 'Stokta yok' }}
-        </p>
+        <div class="stock-status-wrapper">
+          <p class="stock-info" :class="{ low: product.stock === 0 }">
+            <span class="stock-dot" :class="{ 'in-stock': product.stock > 0 }"></span>
+            {{ product.stock > 0 ? `Stokta ${product.stock} adet var` : 'Stokta yok' }}
+          </p>
+          <!-- Stok Durumu Progress Bar -->
+          <div v-if="product.stock > 0" class="stock-progress-container">
+            <div class="stock-progress-bar" :style="{ width: `${Math.min(product.stock * 4, 100)}%` }" :class="{ 'low-stock': product.stock <= 5 }"></div>
+            <span class="stock-progress-text" v-if="product.stock <= 5">⚠️ Acele edin! Son {{ product.stock }} ürün kaldı.</span>
+            <span class="stock-progress-text" v-else>✅ Stok durumu: Güvenli seviyede</span>
+          </div>
+        </div>
 
         <div v-if="product.stock > 0" class="add-to-cart">
           <div class="qty-control">
@@ -310,6 +410,39 @@ function decreaseQty() {
           <button @click="handleToggleCompare" :class="{ active: compareStore.isInCompare(product.id) }">
             ⇄ {{ compareStore.isInCompare(product.id) ? 'Karşılaştırmada' : 'Karşılaştırmaya Ekle' }}
           </button>
+          <button class="price-alert-btn" @click="openAlertModal">
+            🔔 Fiyat Alarmı Kur
+          </button>
+        </div>
+
+        <!-- Canlı İnceleme & Kargo Detayları -->
+        <div class="product-highlights">
+          <!-- Live Viewers -->
+          <div class="live-viewers-badge">
+            <span class="pulse-dot"></span>
+            <span>Bu ürünü şu anda <strong>{{ liveViewersCount }}</strong> kişi inceliyor.</span>
+          </div>
+
+          <!-- Kargo Kartları -->
+          <div class="shipping-info-box">
+            <div class="shipping-info-item">
+              <span class="shipping-icon">🚚</span>
+              <div class="shipping-details">
+                <strong>Aynı Gün Kargo Fırsatı!</strong>
+                <p v-if="timeLeftToShip" class="ship-countdown">
+                  Önümüzdeki <span class="countdown-timer">{{ timeLeftToShip }}</span> içinde sipariş verirseniz bugün kargoda!
+                </p>
+                <p v-else>Siparişiniz hızlıca kargoya teslim edilecektir.</p>
+              </div>
+            </div>
+            <div class="shipping-info-item" v-if="product.price >= 750">
+              <span class="shipping-icon">🎉</span>
+              <div class="shipping-details">
+                <strong>Ücretsiz Kargo</strong>
+                <p>Bu ürün 750 TL üzeri olduğu için kargo tamamen ücretsizdir!</p>
+              </div>
+            </div>
+          </div>
         </div>
 
         <p v-if="message" class="success">{{ message }}</p>
@@ -324,6 +457,40 @@ function decreaseQty() {
       <button v-if="allImages.length > 1" class="lightbox-nav next" @click="nextLightbox">›</button>
     </div>
 
+    <!-- Fiyat Alarmı Modalı -->
+    <Transition name="modal-fade">
+      <div v-if="showAlertModal" class="alert-modal-backdrop" @click.self="showAlertModal = false">
+        <div class="alert-modal-box">
+          <button class="alert-modal-close" @click="showAlertModal = false">✕</button>
+          <div class="alert-modal-icon">🔔</div>
+          <h3>Fiyat Alarmı Kur</h3>
+          <p class="alert-modal-desc">
+            <strong>{{ product.name }}</strong> için hedef fiyatınızı belirleyin.<br/>
+            Ürün bu fiyata düştüğünde sizi anında bilgilendireceğiz.
+          </p>
+          <div class="alert-current-price">
+            <span class="alert-price-label">Mevcut Fiyat:</span>
+            <span class="alert-price-value">{{ formatCurrency(product.price) }} TL</span>
+          </div>
+          <div class="alert-form">
+            <label>Hedef Fiyatınız (TL)</label>
+            <input
+              v-model="alertTargetPrice"
+              type="number"
+              :placeholder="`Örn: ${Math.floor(product.price * 0.85)}`"
+              min="1"
+              @keyup.enter="submitPriceAlert"
+            />
+          </div>
+          <div v-if="alertMsg" class="alert-feedback success-feedback">🎉 {{ alertMsg }}</div>
+          <div v-if="alertError" class="alert-feedback error-feedback">⚠️ {{ alertError }}</div>
+          <button class="btn-primary alert-submit-btn" @click="submitPriceAlert" :disabled="alertLoading">
+            {{ alertLoading ? 'Kaydediliyor...' : '🔔 Alarmı Kur' }}
+          </button>
+        </div>
+      </div>
+    </Transition>
+
     <!-- Taksit Seçenekleri -->
     <div class="card section">
       <div class="section-title">
@@ -332,7 +499,7 @@ function decreaseQty() {
       <table class="simple-table">
         <thead><tr><th>Taksit</th><th>Aylık Tutar</th></tr></thead>
         <tbody>
-          <tr><td>Tek Çekim</td><td class="price-mono">{{ Number(product.price).toFixed(2) }} TL</td></tr>
+          <tr><td>Tek Çekim</td><td class="price-mono">{{ formatCurrency(product.price) }} TL</td></tr>
           <tr v-for="opt in installmentOptions" :key="opt.count">
             <td>{{ opt.count }} Taksit</td>
             <td class="price-mono">{{ opt.monthly }} TL</td>
@@ -901,4 +1068,327 @@ h1 {
   .add-to-cart { flex-direction: column; }
   .similar-card { min-width: 180px; max-width: 180px; }
 }
+
+/* YENİ ÜRÜN DETAY ELEMANLARI */
+.stock-status-wrapper {
+  margin-bottom: 16px;
+}
+
+.stock-progress-container {
+  margin-top: 6px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 4px;
+  height: 6px;
+  position: relative;
+  overflow: visible;
+  max-width: 320px;
+}
+
+.stock-progress-bar {
+  background: var(--color-success);
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.stock-progress-bar.low-stock {
+  background: var(--color-danger);
+  box-shadow: 0 0 6px var(--color-danger);
+}
+
+.stock-progress-text {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--color-slate);
+  margin-top: 5px;
+  font-weight: 500;
+}
+
+/* Canlı İnceleme ve Kargo Alanı */
+.product-highlights {
+  margin-top: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 420px;
+}
+
+.live-viewers-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(68, 214, 44, 0.05);
+  border: 1px solid rgba(68, 214, 44, 0.15);
+  padding: 8px 12px;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  color: #38bdf8;
+}
+
+.live-viewers-badge strong {
+  color: var(--color-volt);
+}
+
+.pulse-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-volt);
+  box-shadow: 0 0 0 0 rgba(68, 214, 44, 0.7);
+  animation: pulse 1.6s infinite;
+  flex-shrink: 0;
+}
+
+@keyframes pulse {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(68, 214, 44, 0.7);
+  }
+  70% {
+    transform: scale(1);
+    box-shadow: 0 0 0 8px rgba(68, 214, 44, 0);
+  }
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(68, 214, 44, 0);
+  }
+}
+
+.shipping-info-box {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--color-line);
+  border-radius: 8px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.shipping-info-item {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.shipping-icon {
+  font-size: 1.2rem;
+  line-height: 1;
+}
+
+.shipping-details {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.shipping-details strong {
+  font-size: 0.82rem;
+  color: white;
+}
+
+.shipping-details p {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--color-slate);
+  line-height: 1.3;
+}
+
+.countdown-timer {
+  font-family: var(--font-mono);
+  color: var(--color-volt);
+  font-weight: 700;
+  background: rgba(68, 214, 44, 0.1);
+  padding: 1px 5px;
+  border-radius: 4px;
+  border: 1px solid rgba(68, 214, 44, 0.2);
+}
+
+/* ============ FİYAT ALARMI BUTONU ============ */
+.price-alert-btn {
+  background: rgba(255, 170, 0, 0.06);
+  border: 1.5px solid rgba(255, 170, 0, 0.25);
+  color: #ffaa00;
+  padding: 10px 18px;
+  border-radius: var(--radius-sm);
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.25s;
+}
+
+.price-alert-btn:hover {
+  background: rgba(255, 170, 0, 0.12);
+  border-color: #ffaa00;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 14px rgba(255, 170, 0, 0.2);
+}
+
+/* ============ FİYAT ALARMI MODALİ ============ */
+.alert-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  padding: 20px;
+}
+
+.alert-modal-box {
+  background: var(--color-surface);
+  border: 1.5px solid rgba(255, 170, 0, 0.25);
+  border-radius: 16px;
+  padding: 36px 32px;
+  max-width: 420px;
+  width: 100%;
+  position: relative;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.5), 0 0 30px rgba(255, 170, 0, 0.08);
+  animation: modal-slide-in 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+@keyframes modal-slide-in {
+  from { opacity: 0; transform: translateY(20px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.alert-modal-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--color-line);
+  color: var(--color-slate);
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 0.85rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.alert-modal-close:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+}
+
+.alert-modal-icon {
+  font-size: 2.4rem;
+  text-align: center;
+  margin-bottom: 14px;
+  animation: bell-ring 1s ease-in-out;
+}
+
+@keyframes bell-ring {
+  0%, 100% { transform: rotate(0); }
+  20% { transform: rotate(15deg); }
+  40% { transform: rotate(-12deg); }
+  60% { transform: rotate(8deg); }
+  80% { transform: rotate(-5deg); }
+}
+
+.alert-modal-box h3 {
+  text-align: center;
+  font-size: 1.3rem;
+  font-weight: 800;
+  margin: 0 0 10px;
+}
+
+.alert-modal-desc {
+  text-align: center;
+  color: var(--color-slate);
+  font-size: 0.87rem;
+  line-height: 1.6;
+  margin-bottom: 18px;
+}
+
+.alert-modal-desc strong {
+  color: white;
+}
+
+.alert-current-price {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--color-line);
+  border-radius: 8px;
+  padding: 10px 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 18px;
+}
+
+.alert-price-label {
+  font-size: 0.82rem;
+  color: var(--color-slate);
+}
+
+.alert-price-value {
+  font-family: var(--font-mono);
+  font-weight: 800;
+  font-size: 1rem;
+  color: white;
+}
+
+.alert-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.alert-form label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--color-slate);
+}
+
+.alert-form input {
+  padding: 12px 16px;
+  font-size: 1rem;
+  background: rgba(255, 170, 0, 0.04);
+  border: 1.5px solid rgba(255, 170, 0, 0.2);
+  color: white;
+  border-radius: var(--radius-sm);
+  transition: border-color 0.2s;
+}
+
+.alert-form input:focus {
+  outline: none;
+  border-color: #ffaa00;
+  box-shadow: 0 0 10px rgba(255, 170, 0, 0.15);
+}
+
+.alert-feedback {
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 0.83rem;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+
+.success-feedback {
+  background: rgba(68, 214, 44, 0.08);
+  border: 1px solid rgba(68, 214, 44, 0.2);
+  color: var(--color-volt);
+}
+
+.error-feedback {
+  background: rgba(255, 59, 59, 0.06);
+  border: 1px solid rgba(255, 59, 59, 0.2);
+  color: var(--color-danger);
+}
+
+.alert-submit-btn {
+  width: 100%;
+  padding: 13px;
+  font-size: 0.95rem;
+}
+
+/* Modal Transition */
+.modal-fade-enter-active, .modal-fade-leave-active { transition: opacity 0.25s ease; }
+.modal-fade-enter-from, .modal-fade-leave-to { opacity: 0; }
 </style>

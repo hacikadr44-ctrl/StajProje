@@ -1,6 +1,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import api from '../api/axios'
+import { formatCurrency } from '../utils/format'
 
 const orders = ref([])
 const loading = ref(true)
@@ -130,7 +131,7 @@ async function handleCancelOrder(order) {
             </div>
             <div class="total-price">
               <span class="label">Toplam Tutar:</span>
-              <span class="amount">{{ Number(order.totalPrice).toFixed(2) }} TL</span>
+              <span class="amount">{{ formatCurrency(order.totalPrice) }} TL</span>
             </div>
           </div>
         </div>
@@ -185,17 +186,17 @@ async function handleCancelOrder(order) {
               <img :src="item.Product?.imageUrl || 'https://via.placeholder.com/80'" :alt="item.Product?.name" class="detail-item-img" />
               <div class="detail-item-info">
                 <h4>{{ item.Product?.name || 'Ürün' }}</h4>
-                <p class="item-unit-price">{{ Number(item.priceAtPurchase).toFixed(2) }} TL x {{ item.quantity }} adet</p>
+                <p class="item-unit-price">{{ formatCurrency(item.priceAtPurchase) }} TL x {{ item.quantity }} adet</p>
               </div>
               <div class="detail-item-total">
-                {{ (Number(item.priceAtPurchase) * item.quantity).toFixed(2) }} TL
+                {{ formatCurrency(Number(item.priceAtPurchase) * item.quantity) }} TL
               </div>
             </div>
           </div>
 
           <div class="detail-total-row">
             <span>Genel Toplam</span>
-            <strong class="grand-total">{{ Number(selectedOrder.totalPrice).toFixed(2) }} TL</strong>
+            <strong class="grand-total">{{ formatCurrency(selectedOrder.totalPrice) }} TL</strong>
           </div>
         </div>
 

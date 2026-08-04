@@ -5,6 +5,7 @@ import api from '../api/axios'
 import { useCartStore } from '../stores/cart'
 import { useAuthStore } from '../stores/auth'
 import { locations } from '../constants/locations'
+import { formatCurrency } from '../utils/format'
 
 const cartStore = useCartStore()
 const authStore = useAuthStore()
@@ -75,7 +76,7 @@ const selectedInstallment = ref(1)
 const installmentOptions = computed(() => {
   return [1, 2, 3, 6, 9, 12].map((count) => ({
     count,
-    monthly: (cartStore.totalPrice / count).toFixed(2),
+    monthly: formatCurrency(cartStore.totalPrice / count),
   }))
 })
 
@@ -127,8 +128,21 @@ const isOnlinePaymentValid = computed(() => {
   )
 })
 
+const appliedCoupon = ref(null)
+
 onMounted(async () => {
   cartStore.fetchCart()
+  
+  // Load saved coupon code
+  const saved = localStorage.getItem('checkoutCoupon')
+  if (saved) {
+    try {
+      appliedCoupon.value = JSON.parse(saved)
+    } catch (e) {
+      localStorage.removeItem('checkoutCoupon')
+    }
+  }
+
   if (authStore.isLoggedIn) {
     try {
       const res = await api.get('/addresses')
@@ -145,6 +159,26 @@ onMounted(async () => {
       addressMode.value = 'custom'
     }
   }
+})
+
+const discountAmount = computed(() => {
+  if (!appliedCoupon.value) return 0
+  if (appliedCoupon.value.type === 'percentage') {
+    return (cartStore.totalPrice * appliedCoupon.value.value) / 100
+  } else if (appliedCoupon.value.type === 'flat') {
+    return Math.min(appliedCoupon.value.value, cartStore.totalPrice)
+  }
+  return 0
+})
+
+const shippingCost = computed(() => {
+  if (cartStore.totalPrice >= 750) return 0
+  if (appliedCoupon.value && appliedCoupon.value.type === 'free_shipping') return 0
+  return 29.90
+})
+
+const grandTotal = computed(() => {
+  return Math.max(0, cartStore.totalPrice - discountAmount.value + shippingCost.value)
 })
 
 async function handleConfirmOrder() {
@@ -177,9 +211,11 @@ async function handleConfirmOrder() {
       district: selectedDistrict.value,
       address: address.value,
       paymentMethod: paymentMethod.value,
+      couponCode: appliedCoupon.value ? appliedCoupon.value.code : null
     })
     completedOrder.value = res.data
     cartStore.clearLocal()
+    localStorage.removeItem('checkoutCoupon') // Kuponu temizle
     step.value = 'success'
   } catch (err) {
     error.value = err.response?.data?.message || 'Sipariş oluşturulamadı.'
@@ -191,18 +227,69 @@ async function handleConfirmOrder() {
 
 <template>
   <div class="checkout-wrapper">
-    <!-- ADIM GÖSTERGESİ -->
-    <div class="steps" v-if="step !== 'success'">
-      <span :class="{ active: step === 'address' }">1. Teslimat Adresi</span>
-      <span class="sep">→</span>
-      <span :class="{ active: step === 'payment' }">2. Ödeme</span>
+    <!-- ADIM GÖSTERGESİ (Neon Progress Bar) -->
+    <div class="checkout-steps-bar" v-if="step !== 'success'">
+      <div class="steps-track">
+        <!-- Adım 1: Sepet -->
+        <div class="step-node completed">
+          <div class="step-circle">
+            <span class="step-check">✓</span>
+          </div>
+          <span class="step-label">🛒 Sepetim</span>
+        </div>
+        <div class="step-connector" :class="{ filled: true }"></div>
+
+        <!-- Adım 2: Adres -->
+        <div class="step-node" :class="{ active: step === 'address', completed: step === 'payment' }">
+          <div class="step-circle">
+            <span v-if="step === 'payment'" class="step-check">✓</span>
+            <span v-else class="step-num">2</span>
+          </div>
+          <span class="step-label">📍 Adres</span>
+        </div>
+        <div class="step-connector" :class="{ filled: step === 'payment' }"></div>
+
+        <!-- Adım 3: Ödeme -->
+        <div class="step-node" :class="{ active: step === 'payment' }">
+          <div class="step-circle">
+            <span class="step-num">3</span>
+          </div>
+          <span class="step-label">💳 Ödeme</span>
+        </div>
+        <div class="step-connector"></div>
+
+        <!-- Adım 4: Onay -->
+        <div class="step-node">
+          <div class="step-circle">
+            <span class="step-num">4</span>
+          </div>
+          <span class="step-label">✅ Onay</span>
+        </div>
+      </div>
     </div>
 
     <!-- ADIM 1: ADRES -->
     <div v-if="step === 'address'" class="checkout card">
       <h1>Teslimat Adresi</h1>
       <p v-if="error" class="error-message">{{ error }}</p>
-      <h3 class="total-header">Toplam: {{ cartStore.totalPrice.toFixed(2) }} TL</h3>
+      <!-- Sipariş Özeti Detayı -->
+      <div class="checkout-summary-mini">
+        <div class="summary-mini-row">
+          <span>Ara Toplam:</span>
+          <span>{{ formatCurrency(cartStore.totalPrice) }} TL</span>
+        </div>
+        <div class="summary-mini-row text-discount" v-if="appliedCoupon">
+          <span>Kupon İndirimi ({{ appliedCoupon.code }}):</span>
+          <span>-{{ formatCurrency(discountAmount) }} TL</span>
+        </div>
+        <div class="summary-mini-row">
+          <span>Kargo Ücreti:</span>
+          <span v-if="shippingCost === 0" class="color-success">Ücretsiz</span>
+          <span v-else>{{ formatCurrency(shippingCost) }} TL</span>
+        </div>
+        <div class="summary-mini-divider"></div>
+        <h3 class="total-header">Ödenecek Tutar: {{ formatCurrency(grandTotal) }} TL</h3>
+      </div>
 
       <!-- KAYITLI ADRES SEÇİMİ VEYA YENİ ADRES -->
       <div v-if="savedAddresses.length > 0" class="address-mode-selector">
@@ -286,7 +373,24 @@ async function handleConfirmOrder() {
     <div v-else-if="step === 'payment'" class="checkout card">
       <h1>Ödeme</h1>
       <p v-if="error" class="error-message">{{ error }}</p>
-      <h3 class="total-header">Toplam: {{ cartStore.totalPrice.toFixed(2) }} TL</h3>
+      <!-- Sipariş Özeti Detayı -->
+      <div class="checkout-summary-mini">
+        <div class="summary-mini-row">
+          <span>Ara Toplam:</span>
+          <span>{{ formatCurrency(cartStore.totalPrice) }} TL</span>
+        </div>
+        <div class="summary-mini-row text-discount" v-if="appliedCoupon">
+          <span>Kupon İndirimi ({{ appliedCoupon.code }}):</span>
+          <span>-{{ formatCurrency(discountAmount) }} TL</span>
+        </div>
+        <div class="summary-mini-row">
+          <span>Kargo Ücreti:</span>
+          <span v-if="shippingCost === 0" class="color-success">Ücretsiz</span>
+          <span v-else>{{ formatCurrency(shippingCost) }} TL</span>
+        </div>
+        <div class="summary-mini-divider"></div>
+        <h3 class="total-header">Ödenecek Tutar: {{ formatCurrency(grandTotal) }} TL</h3>
+      </div>
 
       <div class="payment-methods">
         <label class="method-option" :class="{ active: paymentMethod === 'kapida_odeme' }">
@@ -362,20 +466,35 @@ async function handleConfirmOrder() {
       </div>
     </div>
 
-    <!-- ADIM 3: TEŞEKKÜR -->
+    <!-- ADIM 4: TEŞEKKÜR (Neon Success) -->
     <div v-else-if="step === 'success'" class="success-card card">
-      <div class="success-icon">✓</div>
+      <!-- Neon Adım Barı Tamamlandı -->
+      <div class="checkout-steps-bar success-steps">
+        <div class="steps-track">
+          <div class="step-node completed"><div class="step-circle"><span class="step-check">✓</span></div><span class="step-label">🛒 Sepetim</span></div>
+          <div class="step-connector filled"></div>
+          <div class="step-node completed"><div class="step-circle"><span class="step-check">✓</span></div><span class="step-label">📍 Adres</span></div>
+          <div class="step-connector filled"></div>
+          <div class="step-node completed"><div class="step-circle"><span class="step-check">✓</span></div><span class="step-label">💳 Ödeme</span></div>
+          <div class="step-connector filled"></div>
+          <div class="step-node completed active"><div class="step-circle"><span class="step-check">✓</span></div><span class="step-label">✅ Onay</span></div>
+        </div>
+      </div>
+
+      <div class="success-glow-icon">
+        <span class="success-emoji">🎉</span>
+      </div>
       <h1>Siparişiniz Alındı!</h1>
       <p class="thanks-text">
         Bizi tercih ettiğiniz için teşekkür ederiz. Siparişiniz başarıyla oluşturuldu ve en kısa
-        sürede hazırlanmaya başlanacak. Sipariş durumunuzu "Siparişlerim" sayfasından takip
+        sürede hazırlanmaya başlanacak. Sipariş durumunuzu <strong>"Siparişlerim"</strong> sayfasından takip
         edebilirsiniz.
       </p>
-      <p class="order-number" v-if="completedOrder">Sipariş Numarası: #{{ completedOrder.id }}</p>
+      <p class="order-number" v-if="completedOrder">Sipariş No: <span class="order-num-highlight">#{{ completedOrder.id }}</span></p>
 
       <div class="success-buttons">
-        <RouterLink to="/siparislerim"><button class="btn-primary">Siparişlerimi Görüntüle</button></RouterLink>
-        <RouterLink to="/"><button class="secondary-btn">Alışverişe Devam Et</button></RouterLink>
+        <RouterLink to="/siparislerim"><button class="btn-primary">📦 Siparişlerimi Görüntüle</button></RouterLink>
+        <RouterLink to="/"><button class="secondary-btn">🛍️ Alışverişe Devam Et</button></RouterLink>
       </div>
     </div>
   </div>
@@ -387,21 +506,127 @@ async function handleConfirmOrder() {
   margin: 30px auto;
   padding: 0 16px;
 }
-.steps {
+/* ============ NEON STEPS BAR ============ */
+.checkout-steps-bar {
+  margin-bottom: 28px;
+}
+
+.steps-track {
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin-bottom: 16px;
+  justify-content: center;
+  gap: 0;
+}
+
+.step-node {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  position: relative;
+  z-index: 1;
+}
+
+.step-circle {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 2px solid var(--color-line);
+  background: var(--color-surface);
+  display: flex;
+  align-items: center;
+  justify-content: center;
   font-size: 0.85rem;
+  font-weight: 700;
   color: var(--color-slate);
+  transition: all 0.35s cubic-bezier(0.25, 0.8, 0.25, 1);
 }
-.steps .active {
-  color: var(--color-volt);
+
+.step-num {
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.step-check {
+  font-size: 1rem;
+  font-weight: 900;
+}
+
+.step-label {
+  font-size: 0.7rem;
+  color: var(--color-slate);
   font-weight: 600;
+  white-space: nowrap;
+  transition: color 0.3s;
 }
-.sep {
-  color: var(--color-line);
+
+/* Active step */
+.step-node.active .step-circle {
+  border-color: var(--color-volt);
+  background: rgba(68, 214, 44, 0.12);
+  color: var(--color-volt);
+  box-shadow: 0 0 16px rgba(68, 214, 44, 0.35), 0 0 6px rgba(68, 214, 44, 0.2);
+  animation: pulse-step 2s infinite ease-in-out;
 }
+
+.step-node.active .step-label {
+  color: var(--color-volt);
+}
+
+@keyframes pulse-step {
+  0% { box-shadow: 0 0 16px rgba(68, 214, 44, 0.35), 0 0 6px rgba(68, 214, 44, 0.2); }
+  50% { box-shadow: 0 0 24px rgba(68, 214, 44, 0.55), 0 0 10px rgba(68, 214, 44, 0.35); }
+  100% { box-shadow: 0 0 16px rgba(68, 214, 44, 0.35), 0 0 6px rgba(68, 214, 44, 0.2); }
+}
+
+/* Completed step */
+.step-node.completed .step-circle {
+  border-color: var(--color-volt);
+  background: rgba(68, 214, 44, 0.18);
+  color: var(--color-volt);
+}
+
+.step-node.completed .step-label {
+  color: rgba(68, 214, 44, 0.7);
+}
+
+/* Connector line */
+.step-connector {
+  flex: 1;
+  height: 2px;
+  background: var(--color-line);
+  position: relative;
+  margin-bottom: 22px;
+  min-width: 30px;
+  overflow: hidden;
+  transition: background 0.4s;
+}
+
+.step-connector::after {
+  content: '';
+  position: absolute;
+  left: -100%;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, var(--color-volt), transparent);
+  animation: none;
+  transition: left 0.6s ease;
+}
+
+.step-connector.filled {
+  background: rgba(68, 214, 44, 0.4);
+}
+
+.step-connector.filled::after {
+  animation: connector-sweep 1s ease forwards;
+}
+
+@keyframes connector-sweep {
+  from { left: -100%; }
+  to { left: 100%; }
+}
+
 .total-header {
   color: var(--color-volt);
   font-size: 1.2rem;
@@ -574,17 +799,52 @@ form, .card-form {
   text-align: center;
   padding: 40px 24px;
 }
-.success-icon {
-  width: 56px;
-  height: 56px;
+
+.success-steps {
+  margin-bottom: 32px;
+}
+
+.success-glow-icon {
+  margin: 0 auto 20px;
+  width: 80px;
+  height: 80px;
   border-radius: 50%;
-  background: var(--color-success);
-  color: white;
-  font-size: 1.8rem;
+  background: rgba(68, 214, 44, 0.08);
+  border: 2px solid rgba(68, 214, 44, 0.3);
   display: flex;
   align-items: center;
   justify-content: center;
-  margin: 0 auto 16px;
+  animation: success-pop 0.6s cubic-bezier(0.25, 0.8, 0.25, 1) both, success-glow-pulse 2s 0.6s infinite ease-in-out;
+}
+
+.success-emoji {
+  font-size: 2.5rem;
+  animation: spin-in 0.6s cubic-bezier(0.25, 0.8, 0.25, 1) both;
+}
+
+@keyframes success-pop {
+  0% { transform: scale(0); opacity: 0; }
+  70% { transform: scale(1.15); opacity: 1; }
+  100% { transform: scale(1); }
+}
+
+@keyframes spin-in {
+  from { transform: rotate(-45deg) scale(0.5); opacity: 0; }
+  to { transform: rotate(0deg) scale(1); opacity: 1; }
+}
+
+@keyframes success-glow-pulse {
+  0% { box-shadow: 0 0 12px rgba(68, 214, 44, 0.2); }
+  50% { box-shadow: 0 0 28px rgba(68, 214, 44, 0.5), 0 0 60px rgba(68, 214, 44, 0.15); }
+  100% { box-shadow: 0 0 12px rgba(68, 214, 44, 0.2); }
+}
+
+.order-num-highlight {
+  font-family: var(--font-mono);
+  color: var(--color-volt);
+  font-size: 1.1rem;
+  font-weight: 900;
+  letter-spacing: 0.05em;
 }
 .thanks-text {
   color: var(--color-slate);
@@ -609,5 +869,53 @@ form, .card-form {
   border-radius: var(--radius-sm);
   cursor: pointer;
   color: white;
+}
+
+/* SIPARIS OZETI DETAYLARI */
+.checkout-summary-mini {
+  background: rgba(255, 255, 255, 0.01);
+  border: 1px dashed var(--color-line);
+  border-radius: var(--radius-sm);
+  padding: 14px 18px;
+  margin-bottom: 20px;
+}
+
+.summary-mini-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.86rem;
+  margin-bottom: 8px;
+  color: var(--color-slate);
+}
+
+.summary-mini-row span:last-child {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  color: white;
+}
+
+.summary-mini-row.text-discount {
+  color: var(--color-volt);
+}
+
+.summary-mini-row.text-discount span {
+  color: var(--color-volt) !important;
+}
+
+.color-success {
+  color: var(--color-success) !important;
+  font-weight: 700 !important;
+}
+
+.summary-mini-divider {
+  height: 1px;
+  background: var(--color-line);
+  margin: 10px 0;
+}
+
+.checkout-summary-mini .total-header {
+  margin: 0;
+  text-align: right;
+  font-size: 1.1rem;
 }
 </style>

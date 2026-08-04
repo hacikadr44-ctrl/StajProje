@@ -36,4 +36,21 @@ async function deleteCategory(req, res) {
   }
 }
 
-module.exports = { getCategories, createCategory, deleteCategory };
+// PUT /api/categories/:id (sadece admin)
+async function updateCategory(req, res) {
+  try {
+    const category = await categoryRepository.findById(req.params.id);
+    if (!category) return res.status(404).json({ message: 'Kategori bulunamadı.' });
+
+    const { name } = req.body;
+    if (!name || !name.trim()) return res.status(400).json({ message: 'Kategori adı zorunludur.' });
+
+    category.name = name.trim();
+    await category.save();
+    res.json(category);
+  } catch (err) {
+    res.status(500).json({ message: 'Kategori güncellenirken hata oluştu.', error: err.message });
+  }
+}
+
+module.exports = { getCategories, createCategory, deleteCategory, updateCategory };
