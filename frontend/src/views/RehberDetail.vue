@@ -3,13 +3,20 @@ import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import api from '../api/axios'
 import { formatCurrency } from '../utils/format'
+import { useAuthStore } from '../stores/auth'
+import { useCartStore } from '../stores/cart'
+import { useFavoritesStore } from '../stores/favorites'
 
 const route = useRoute()
 const router = useRouter()
+const authStore = useAuthStore()
+const cartStore = useCartStore()
+const favoritesStore = useFavoritesStore()
 
 const product = ref(null)
 const loading = ref(true)
 const errorMsg = ref('')
+const cartMessage = ref('')
 
 async function fetchProduct() {
   loading.value = true
@@ -23,6 +30,28 @@ async function fetchProduct() {
   } finally {
     loading.value = false
   }
+}
+
+async function handleAddToCart() {
+  if (!authStore.isLoggedIn) {
+    router.push('/giris')
+    return
+  }
+  try {
+    await cartStore.addToCart(product.value.id, 1)
+    cartMessage.value = 'Ürün sepete eklendi ✅'
+    setTimeout(() => (cartMessage.value = ''), 2000)
+  } catch (err) {
+    console.error('Sepete eklenirken hata oluştu:', err)
+  }
+}
+
+function handleToggleFavorite() {
+  if (!authStore.isLoggedIn) {
+    router.push('/giris')
+    return
+  }
+  favoritesStore.toggleFavorite(product.value.id)
 }
 
 const specsEntries = computed(() => {
@@ -127,6 +156,9 @@ const guideContent = computed(() => {
 
 onMounted(() => {
   fetchProduct()
+  if (authStore.isLoggedIn) {
+    favoritesStore.fetchFavorites()
+  }
 })
 </script>
 
@@ -168,10 +200,22 @@ onMounted(() => {
               <p class="stock-info" :class="{ 'in-stock': product.stock > 0, 'out-of-stock': product.stock <= 0 }">
                 ● {{ product.stock > 0 ? `Stokta Var (${product.stock} adet)` : 'Stokta Yok' }}
               </p>
-              <RouterLink :to="`/urun/${product.id}`" class="btn-buy-now">
-                <span>Ürünü Satın Al</span>
-                <span class="arrow">→</span>
-              </RouterLink>
+              <div class="action-buttons-stack">
+                <button v-if="product.stock > 0" class="btn-sidebar-cart" @click="handleAddToCart">
+                  🛒 Sepete Ekle
+                </button>
+                
+                <button class="btn-sidebar-fav" :class="{ active: favoritesStore.isFavorite(product.id) }" @click="handleToggleFavorite">
+                  ♥ {{ favoritesStore.isFavorite(product.id) ? 'Favorilerde' : 'Favorilere Ekle' }}
+                </button>
+
+                <RouterLink :to="'/urun/' + product.id" class="btn-buy-now">
+                  <span>Detaylı Ürün Sayfası</span>
+                  <span class="arrow">→</span>
+                </RouterLink>
+              </div>
+
+              <p v-if="cartMessage" class="cart-feedback-text">{{ cartMessage }}</p>
             </div>
           </div>
         </div>
@@ -493,5 +537,77 @@ onMounted(() => {
   .guide-main-title {
     font-size: 1.8rem;
   }
+}
+
+/* ============ SIDEBAR ACTION BUTTONS ============ */
+.action-buttons-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 15px;
+  width: 100%;
+}
+
+.btn-sidebar-cart {
+  width: 100%;
+  padding: 12px;
+  background: var(--color-volt);
+  color: #0b0f19;
+  border: none;
+  border-radius: 8px;
+  font-weight: 800;
+  font-size: 0.92rem;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  box-shadow: 0 0 10px rgba(68, 214, 44, 0.1);
+}
+
+.btn-sidebar-cart:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 18px rgba(68, 214, 44, 0.35);
+}
+
+.btn-sidebar-fav {
+  width: 100%;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1.5px solid var(--color-line);
+  color: white;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+
+.btn-sidebar-fav:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.btn-sidebar-fav.active {
+  background: rgba(255, 71, 87, 0.05);
+  border-color: rgba(255, 71, 87, 0.25);
+  color: #ff4757;
+  box-shadow: 0 0 12px rgba(255, 71, 87, 0.15);
+}
+
+.btn-sidebar-fav.active:hover {
+  background: rgba(255, 71, 87, 0.1);
+  border-color: #ff4757;
+}
+
+.cart-feedback-text {
+  color: var(--color-volt);
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-align: center;
+  margin: 10px 0 0 0;
+  animation: slide-up-fade 0.3s ease;
+}
+
+@keyframes slide-up-fade {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 </style>

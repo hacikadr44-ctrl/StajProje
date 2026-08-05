@@ -9,6 +9,7 @@ import { formatCurrency } from '../utils/format'
 const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
+let timerInterval = null
 
 // ---- VERİ & FİLTRELEME DEĞİŞKENLERİ ----
 const products = ref([])
@@ -543,6 +544,9 @@ onMounted(() => {
 onUnmounted(() => {
   stopHeroRotation()
   clearInterval(countdownTimer)
+  if (timerInterval) {
+    clearInterval(timerInterval)
+  }
   document.removeEventListener('click', handleGlobalClick)
 })
 
@@ -572,6 +576,7 @@ const wheelRotation = ref(0)
 const hasSpun = ref(false)
 const wonItem = ref(null)
 const couponCopied = ref(false)
+const remainingTimeText = ref('')
 
 const wheelItems = [
   { label: '%10 İndirim', code: 'TEKNO10', color: '#ff7675' },
@@ -584,23 +589,75 @@ const wheelItems = [
   { label: 'Pas', code: '', color: '#fdcb6e' }
 ]
 
-onMounted(() => {
-  // Kontrol et: Daha önce çevrilmiş mi?
+const checkSpinStatus = () => {
+  const lastSpinTime = localStorage.getItem('lastSpinTime')
   const savedCode = localStorage.getItem('wonCouponCode')
   const savedLabel = localStorage.getItem('wonCouponLabel')
-  if (savedCode) {
+
+  if (lastSpinTime && savedCode) {
+    const timeDiff = Date.now() - Number(lastSpinTime)
+    const hours24 = 24 * 60 * 60 * 1000
+    if (timeDiff < hours24) {
+      hasSpun.value = true
+      wonItem.value = { code: savedCode, label: savedLabel }
+    } else {
+      // 24 saat geçti, sıfırla!
+      hasSpun.value = false
+      wonItem.value = null
+      localStorage.removeItem('wonCouponCode')
+      localStorage.removeItem('wonCouponLabel')
+      localStorage.removeItem('lastSpinTime')
+    }
+  } else if (savedCode) {
     hasSpun.value = true
     wonItem.value = { code: savedCode, label: savedLabel }
+    localStorage.setItem('lastSpinTime', Date.now().toString())
+  } else {
+    hasSpun.value = false
+    wonItem.value = null
   }
+}
+
+const updateRemainingTime = () => {
+  const lastSpinTime = localStorage.getItem('lastSpinTime')
+  if (!lastSpinTime) {
+    remainingTimeText.value = ''
+    return
+  }
+  const timeDiff = Date.now() - Number(lastSpinTime)
+  const hours24 = 24 * 60 * 60 * 1000
+  const remainingMs = hours24 - timeDiff
+  if (remainingMs <= 0) {
+    remainingTimeText.value = ''
+    checkSpinStatus()
+    return
+  }
+  const hours = Math.floor(remainingMs / (1000 * 60 * 60))
+  const minutes = Math.floor((remainingMs % (1000 * 60 * 60)) / (1000 * 60))
+  const seconds = Math.floor((remainingMs % (1000 * 60)) / 1000)
+  remainingTimeText.value = `Yeni çevirme hakkına kalan süre: ${hours} sa ${minutes} dk ${seconds} sn`
+}
+
+onMounted(() => {
+  checkSpinStatus()
 })
 
 function openWheelModal() {
+  checkSpinStatus()
+  updateRemainingTime()
   showWheelModal.value = true
+  if (hasSpun.value && !timerInterval) {
+    timerInterval = setInterval(updateRemainingTime, 1000)
+  }
 }
 
 function closeWheelModal() {
   if (isSpinning.value) return // Dönerken kapattırma
   showWheelModal.value = false
+  if (timerInterval) {
+    clearInterval(timerInterval)
+    timerInterval = null
+  }
 }
 
 function spinWheel() {
@@ -624,6 +681,12 @@ function spinWheel() {
     // Save to LocalStorage to prevent multiple entries
     localStorage.setItem('wonCouponCode', wonItem.value.code)
     localStorage.setItem('wonCouponLabel', wonItem.value.label)
+    localStorage.setItem('lastSpinTime', Date.now().toString())
+
+    updateRemainingTime()
+    if (showWheelModal.value && !timerInterval) {
+      timerInterval = setInterval(updateRemainingTime, 1000)
+    }
   }, 4000)
 }
 
@@ -1269,6 +1332,7 @@ function copyCoupon() {
                     <button class="copy-btn-inner">{{ couponCopied ? 'Kopyalandı! ✓' : 'Kopyala 📋' }}</button>
                   </div>
                   <p class="coupon-usage-note">Bu kodu Sepetim sayfasında kupon kodu alanına yapıştırarak kullanabilirsiniz.</p>
+                  <p v-if="remainingTimeText" class="spin-cooldown-text">{{ remainingTimeText }}</p>
                 </div>
               </div>
             </div>
@@ -2549,6 +2613,20 @@ section#kampanyalar {
   margin: 4px 0 0 0;
   max-width: 360px;
   line-height: 1.4;
+}
+
+.spin-cooldown-text {
+  font-size: 0.76rem;
+  color: #ff7675;
+  margin: 10px 0 0 0;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  background: rgba(255, 118, 117, 0.05);
+  border: 1px dashed rgba(255, 118, 117, 0.25);
+  padding: 6px 14px;
+  border-radius: 6px;
+  display: inline-block;
+  box-shadow: 0 0 8px rgba(255, 118, 117, 0.05);
 }
 
 /* Transitions */

@@ -1,11 +1,16 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useAuthStore } from '../stores/auth'
+import { formatCurrency } from '../utils/format'
 import api from '../api/axios'
 
 const authStore = useAuthStore()
 
-const activeTab = ref('profile') // 'profile', 'password', 'addresses'
+const activeTab = ref('profile') // 'profile', 'password', 'addresses', 'price-alerts'
+
+// Fiyat Alarmları
+const priceAlerts = ref([])
+const alertsLoading = ref(false)
 
 // Profil Bilgileri
 const name = ref(authStore.user?.name || '')
@@ -40,7 +45,30 @@ const addressError = ref('')
 
 onMounted(async () => {
   fetchAddresses()
+  fetchPriceAlerts()
 })
+
+async function fetchPriceAlerts() {
+  try {
+    alertsLoading.value = true
+    const res = await api.get('/price-alerts')
+    priceAlerts.value = res.data
+  } catch (err) {
+    console.error('Fiyat alarmları yüklenemedi:', err)
+  } finally {
+    alertsLoading.value = false
+  }
+}
+
+async function handleDeleteAlert(id) {
+  if (!confirm('Bu fiyat alarmını kaldırmak istediğinize emin misiniz?')) return
+  try {
+    await api.delete(`/price-alerts/${id}`)
+    await fetchPriceAlerts()
+  } catch (err) {
+    alert(err.response?.data?.message || 'Alarm silinirken hata oluştu.')
+  }
+}
 
 async function fetchAddresses() {
   try {
@@ -175,6 +203,9 @@ async function handleDeleteAddress(id) {
       <button :class="{ active: activeTab === 'addresses' }" @click="activeTab = 'addresses'">
         📍 Adres Defterim
       </button>
+      <button :class="{ active: activeTab === 'price-alerts' }" @click="activeTab = 'price-alerts'">
+        🔔 Fiyat Alarmlarım
+      </button>
     </div>
 
     <!-- TAB 1: PROFİL GÜNCELLEME -->
@@ -261,6 +292,48 @@ async function handleDeleteAddress(id) {
           <div class="address-actions">
             <button class="btn-sm btn-outline" @click="openAddressModal(item)">✏️ Düzenle</button>
             <button class="btn-sm btn-danger" @click="handleDeleteAddress(item.id)">🗑️ Sil</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 4: FİYAT ALARMLARIM -->
+    <div v-if="activeTab === 'price-alerts'" class="tab-content card">
+      <div class="price-alerts-header">
+        <div>
+          <h2>Fiyat Alarmlarım</h2>
+          <p class="tab-sub">Ürünlerin fiyatı düştüğünde haberdar olmak için kurduğunuz alarmları yönetin.</p>
+        </div>
+      </div>
+
+      <div v-if="alertsLoading" class="loading-state">Alarmlar yükleniyor...</div>
+      <div v-else-if="priceAlerts.length === 0" class="empty-state">
+        <p>Henüz kurulmuş bir fiyat alarmınız bulunmuyor.</p>
+        <RouterLink to="/" class="btn btn-secondary">Ürünleri İncele & Alarm Kur</RouterLink>
+      </div>
+
+      <div v-else class="alerts-grid">
+        <div v-for="alert in priceAlerts" :key="alert.id" class="alert-item-card">
+          <img :src="alert.Product?.imageUrl || 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=600&auto=format&fit=crop&q=80'" :alt="alert.Product?.name" class="alert-prod-img" />
+          
+          <div class="alert-prod-details">
+            <span class="alert-prod-brand" v-if="alert.Product?.brand">{{ alert.Product?.brand }}</span>
+            <RouterLink :to="`/urun/${alert.Product?.id}`" class="alert-prod-name">{{ alert.Product?.name }}</RouterLink>
+            
+            <div class="alert-price-comparison">
+              <div class="price-info-pill current">
+                <span class="label">Mevcut Fiyat:</span>
+                <span class="value">{{ formatCurrency(alert.Product?.price) }} TL</span>
+              </div>
+              <div class="price-info-pill target">
+                <span class="label">Hedef Fiyat:</span>
+                <span class="value text-volt">{{ formatCurrency(alert.targetPrice) }} TL</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="alert-card-actions">
+            <button class="btn-sm btn-danger" @click="handleDeleteAlert(alert.id)">🗑️ Alarmı Sil</button>
           </div>
         </div>
       </div>
@@ -613,6 +686,126 @@ async function handleDeleteAddress(id) {
   }
   .form-row {
     grid-template-columns: 1fr;
+  }
+}
+
+/* ============ FİYAT ALARMLARI TABİ CSS ============ */
+.price-alerts-header {
+  margin-bottom: 24px;
+}
+
+.alerts-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.alert-item-card {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--color-line);
+  padding: 16px;
+  border-radius: var(--radius-sm);
+  transition: transform 0.2s, border-color 0.2s;
+}
+
+.alert-item-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(255, 170, 0, 0.3);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+}
+
+.alert-prod-img {
+  width: 80px;
+  height: 80px;
+  object-fit: contain;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-sm);
+  padding: 6px;
+}
+
+.alert-prod-details {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.alert-prod-brand {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  color: var(--color-slate);
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+
+.alert-prod-name {
+  color: white;
+  font-size: 0.95rem;
+  font-weight: 700;
+  text-decoration: none;
+  transition: color 0.15s;
+}
+
+.alert-prod-name:hover {
+  color: var(--color-volt);
+}
+
+.alert-price-comparison {
+  display: flex;
+  gap: 12px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.price-info-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--color-line);
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 0.8rem;
+}
+
+.price-info-pill.target {
+  background: rgba(255, 170, 0, 0.05);
+  border-color: rgba(255, 170, 0, 0.2);
+}
+
+.price-info-pill .label {
+  color: var(--color-slate);
+}
+
+.price-info-pill .value {
+  font-family: var(--font-mono);
+  font-weight: 700;
+}
+
+.alert-card-actions {
+  display: flex;
+  align-items: center;
+}
+
+@media (max-width: 600px) {
+  .alert-item-card {
+    flex-direction: column;
+    text-align: center;
+    align-items: stretch;
+    gap: 16px;
+  }
+  .alert-prod-img {
+    margin: 0 auto;
+  }
+  .alert-price-comparison {
+    justify-content: center;
+  }
+  .alert-card-actions {
+    justify-content: center;
   }
 }
 </style>

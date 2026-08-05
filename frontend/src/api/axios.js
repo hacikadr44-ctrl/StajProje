@@ -15,4 +15,23 @@ api.interceptors.request.use((config) => {
   return config
 })
 
+// Hata yönetimi interceptor'ı: Token süresi dolduğunda veya geçersiz olduğunda otomatik çıkış yapar.
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    const isLoginRequest = error.config?.url?.includes('/auth/login')
+    if (error.response?.status === 401 && !isLoginRequest) {
+      // localStorage'ı temizleyerek çıkış yapılmış gibi davranıyoruz (Döngüsel bağımlılığı önlemek için)
+      localStorage.removeItem('token')
+      localStorage.removeItem('user')
+      
+      // Giriş sayfasına yönlendir ve sayfayı temizle
+      if (window.location.pathname !== '/giris') {
+        window.location.href = '/giris'
+      }
+    }
+    return Promise.reject(error)
+  }
+)
+
 export default api
