@@ -229,6 +229,7 @@ h1 {
   gap: 16px;
   margin-bottom: 10px;
   padding: 14px 18px;
+  position: relative;
 }
 .cart-img-link {
   flex-shrink: 0;
@@ -377,6 +378,50 @@ h1 {
   }
   .line-total {
     width: auto;
+  }
+}
+
+@media (max-width: 600px) {
+  .cart-row {
+    display: grid !important;
+    grid-template-columns: 72px 1fr auto !important;
+    grid-template-rows: auto auto !important;
+    gap: 10px 14px !important;
+    padding: 12px 14px !important;
+    align-items: center !important;
+  }
+  
+  .cart-img-link {
+    grid-column: 1 !important;
+    grid-row: 1 / span 2 !important;
+  }
+  
+  .cart-info {
+    grid-column: 2 / span 2 !important;
+    grid-row: 1 !important;
+    padding-right: 32px !important; /* Close butonunun üzerine binmesin diye */
+  }
+  
+  .qty-control {
+    grid-column: 2 !important;
+    grid-row: 2 !important;
+    justify-self: start !important;
+  }
+  
+  .line-total {
+    grid-column: 3 !important;
+    grid-row: 2 !important;
+    text-align: right !important;
+    width: auto !important;
+    margin: 0 !important;
+  }
+  
+  .remove-btn {
+    position: absolute !important;
+    top: 12px !important;
+    right: 12px !important;
+    width: 28px !important;
+    height: 28px !important;
   }
 }
 

@@ -1069,6 +1069,19 @@ h1 {
   .similar-card { min-width: 180px; max-width: 180px; }
 }
 
+@media (max-width: 500px) {
+  .action-buttons {
+    flex-direction: column !important;
+    gap: 8px !important;
+  }
+  .action-buttons button {
+    width: 100% !important;
+    text-align: center !important;
+    padding: 10px 16px !important;
+  }
+}
+
+
 /* YENİ ÜRÜN DETAY ELEMANLARI */
 .stock-status-wrapper {
   margin-bottom: 16px;

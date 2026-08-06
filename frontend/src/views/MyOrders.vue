@@ -8,6 +8,49 @@ const loading = ref(true)
 const selectedOrder = ref(null)
 const cancellingId = ref(null)
 
+// ---- ÖZEL ONAY MODAL VE TOAST STATE ----
+const confirmModal = ref({
+  show: false,
+  message: '',
+  onConfirm: null,
+})
+
+const toast = ref({
+  show: false,
+  message: '',
+  type: 'success', // 'success' | 'error'
+})
+
+let toastTimeout = null
+
+function showToast(message, type = 'success') {
+  toast.value.message = message
+  toast.value.type = type
+  toast.value.show = true
+  
+  if (toastTimeout) clearTimeout(toastTimeout)
+  toastTimeout = setTimeout(() => {
+    toast.value.show = false
+  }, 4000)
+}
+
+function triggerConfirm(message, action) {
+  confirmModal.value.message = message
+  confirmModal.value.onConfirm = action
+  confirmModal.value.show = true
+}
+
+function executeConfirm() {
+  if (confirmModal.value.onConfirm) {
+    confirmModal.value.onConfirm()
+  }
+  confirmModal.value.show = false
+}
+
+function closeConfirm() {
+  confirmModal.value.show = false
+}
+
 const statusLabels = {
   beklemede: 'Beklemede',
   hazirlaniyor: 'Hazırlanıyor',
@@ -57,23 +100,24 @@ function openDetail(order) {
 }
 
 async function handleCancelOrder(order) {
-  if (!confirm(`Sipariş #${order.id} tutarındaki siparişinizi iptal etmek istediğinize emin misiniz?`)) {
-    return
-  }
-
-  cancellingId.value = order.id
-  try {
-    const res = await api.put(`/orders/${order.id}/cancel`)
-    alert(res.data.message || 'Siparişiniz başarıyla iptal edildi.')
-    await fetchMyOrders()
-    if (selectedOrder.value && selectedOrder.value.id === order.id) {
-      selectedOrder.value = orders.value.find(o => o.id === order.id) || null
+  triggerConfirm(
+    `Sipariş #${order.id} tutarındaki siparişinizi iptal etmek istediğinize emin misiniz?`,
+    async () => {
+      cancellingId.value = order.id
+      try {
+        const res = await api.put(`/orders/${order.id}/cancel`)
+        showToast(res.data.message || 'Siparişiniz başarıyla iptal edildi.', 'success')
+        await fetchMyOrders()
+        if (selectedOrder.value && selectedOrder.value.id === order.id) {
+          selectedOrder.value = orders.value.find(o => o.id === order.id) || null
+        }
+      } catch (err) {
+        showToast(err.response?.data?.message || 'Sipariş iptal edilirken bir hata oluştu.', 'error')
+      } finally {
+        cancellingId.value = null
+      }
     }
-  } catch (err) {
-    alert(err.response?.data?.message || 'Sipariş iptal edilirken bir hata oluştu.')
-  } finally {
-    cancellingId.value = null
-  }
+  )
 }
 </script>
 
@@ -212,6 +256,30 @@ async function handleCancelOrder(order) {
           <button class="btn btn-secondary" @click="selectedOrder = null">Kapat</button>
         </div>
       </div>
+    </div>
+
+    <!-- ÖZEL CONFIRM MODAL -->
+    <div v-if="confirmModal.show" class="confirm-backdrop" @click.self="closeConfirm">
+      <div class="confirm-card">
+        <div class="confirm-body">
+          <div class="confirm-icon">⚠️</div>
+          <p class="confirm-text">{{ confirmModal.message }}</p>
+        </div>
+        <div class="confirm-footer">
+          <button class="btn btn-secondary btn-sm" @click="closeConfirm">Vazgeç</button>
+          <button class="btn btn-danger-outline btn-sm" @click="executeConfirm">Evet, İptal Et</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ÖZEL TOAST BİLDİRİM -->
+    <div class="toast-notification" :class="{ show: toast.show, success: toast.type === 'success', error: toast.type === 'error' }">
+      <div class="toast-icon">
+        <span v-if="toast.type === 'success'">✔️</span>
+        <span v-else>❌</span>
+      </div>
+      <div class="toast-content">{{ toast.message }}</div>
+      <button class="toast-close" @click="toast.show = false">✕</button>
     </div>
   </div>
 </template>
@@ -650,5 +718,138 @@ async function handleCancelOrder(order) {
     width: 100%;
     justify-content: space-between;
   }
+}
+
+/* ---- CUSTOM CONFIRM MODAL & TOAST ---- */
+.toast-notification {
+  position: fixed;
+  top: 24px;
+  right: 24px;
+  z-index: 9999;
+  min-width: 320px;
+  max-width: 450px;
+  padding: 14px 18px;
+  border-radius: var(--radius);
+  background: rgba(21, 23, 31, 0.9);
+  backdrop-filter: blur(15px);
+  -webkit-backdrop-filter: blur(15px);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  transform: translateY(-20px);
+  opacity: 0;
+  pointer-events: none;
+  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.toast-notification.show {
+  transform: translateY(0);
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.toast-notification.success {
+  border: 1.5px solid var(--color-volt);
+  border-left: 5px solid var(--color-volt);
+}
+
+.toast-notification.error {
+  border: 1.5px solid var(--color-danger);
+  border-left: 5px solid var(--color-danger);
+}
+
+.toast-icon {
+  font-size: 1.2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.toast-content {
+  flex: 1;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: white;
+}
+
+.toast-close {
+  background: none;
+  border: none;
+  color: var(--color-slate);
+  cursor: pointer;
+  font-size: 1.1rem;
+  padding: 0 4px;
+}
+
+.toast-close:hover {
+  color: white;
+}
+
+/* Custom Confirm Modal */
+.confirm-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  padding: 16px;
+}
+
+.confirm-card {
+  width: 100%;
+  max-width: 420px;
+  background: var(--color-surface);
+  border: 1.5px solid var(--color-line);
+  border-radius: var(--radius);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+  overflow: hidden;
+  animation: modalScaleUp 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+@keyframes modalScaleUp {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.confirm-body {
+  padding: 24px 24px 16px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 16px;
+}
+
+.confirm-icon {
+  font-size: 2.2rem;
+}
+
+.confirm-text {
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: var(--color-ink);
+  font-weight: 600;
+  margin: 0;
+}
+
+.confirm-footer {
+  padding: 14px 24px 20px 24px;
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+}
+
+.confirm-footer button {
+  min-width: 120px;
 }
 </style>

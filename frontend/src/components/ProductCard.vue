@@ -370,4 +370,11 @@ h3 {
   background: var(--color-success);
   box-shadow: 0 0 6px rgba(68, 214, 44, 0.5);
 }
+
+@media (max-width: 768px) {
+  .quick-actions {
+    opacity: 0.95 !important;
+    transform: translateX(-50%) translateY(0) !important;
+  }
+}
 </style>

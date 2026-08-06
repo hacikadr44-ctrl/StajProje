@@ -264,9 +264,16 @@ const minPrice = computed(() => {
   vertical-align: middle;
 }
 
+.first-th, .row-label {
+  position: sticky !important;
+  left: 0 !important;
+  z-index: 10 !important;
+  background: #11141e !important;
+  box-shadow: 2px 0 8px rgba(0, 0, 0, 0.5) !important;
+}
+
 .first-th {
-  width: 250px;
-  background: rgba(10, 12, 20, 0.9) !important;
+  width: 200px;
 }
 
 .compare-table th {
@@ -471,11 +478,10 @@ const minPrice = computed(() => {
   font-size: 0.8rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  background: rgba(10, 12, 20, 0.4);
   color: var(--color-slate);
   text-align: left;
   border-right: 2px solid var(--color-line);
-  width: 250px;
+  width: 200px;
 }
 
 .val-td {
@@ -587,5 +593,71 @@ const minPrice = computed(() => {
 
 .compare-scroll-container::-webkit-scrollbar-thumb:hover {
   background: var(--color-slate);
+}
+
+@media (max-width: 768px) {
+  .compare-page {
+    padding: 20px 0;
+  }
+  
+  .compare-title {
+    font-size: 1.4rem !important;
+  }
+  
+  .clear-btn {
+    padding: 6px 12px !important;
+    font-size: 0.8rem !important;
+  }
+  
+  .first-th, .row-label {
+    width: 120px !important;
+    min-width: 120px !important;
+    font-size: 0.72rem !important;
+    padding: 10px 8px !important;
+  }
+  
+  .compare-th {
+    min-width: 160px !important;
+    padding: 10px 8px !important;
+  }
+  
+  .val-td {
+    font-size: 0.78rem !important;
+    padding: 10px 8px !important;
+  }
+  
+  .img-wrapper {
+    width: 80px !important;
+    height: 80px !important;
+    padding: 4px !important;
+  }
+  
+  .product-name {
+    font-size: 0.78rem !important;
+    margin: 8px 0 !important;
+    max-width: 140px !important;
+  }
+  
+  .actions-group {
+    flex-direction: column !important;
+    gap: 6px !important;
+    max-width: 140px !important;
+  }
+  
+  .add-to-cart-btn {
+    width: 100% !important;
+    padding: 6px 8px !important;
+    font-size: 0.72rem !important;
+  }
+  
+  .remove-btn-icon {
+    width: 100% !important;
+    height: 28px !important;
+  }
+  
+  .compare-intro-box p {
+    font-size: 0.7rem !important;
+    line-height: 1.3 !important;
+  }
 }
 </style>
